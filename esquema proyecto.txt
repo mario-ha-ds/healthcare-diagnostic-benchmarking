@@ -1,0 +1,105 @@
+healthcare-diagnostic-benchmarking/
+├── data/
+│   ├── cvd_data.csv            # Dataset 01: Riesgo Cardiovascular
+│   └── hepatitis_data.csv       # Dataset 02: Hepatitis C (UCI)
+├── R/
+│   ├── 01_functions.R           # El "Motor": Funciones modularizadas para notebook 01
+│   ├── 02_functions.R            
+│   └── 03_functions.R           
+├── notebooks/
+│   ├── 01_eda_and_cleaning.Rmd  # Preprocesamiento de ambos datasets
+│   ├── 02_clustering_study.Rmd  # K-means, K-medians y DBSCAN/OPTICS
+│   └── 03_supervised_models.Rmd # C5.0 (con y sin matriz de coste) y Random Forest
+├── output/                      # Gráficos exportados (PNG)
+├── README.md                    # El Executive Summary (Storytelling final)
+└── .gitignore
+
+
+## 1. Notebook 01: EDA y Preprocesamiento
+
+**Objetivo:** Transformar el "caos" de los archivos CSV en dos objetos de datos listos para el combate, analizando por qué uno es "difícil" y el otro "fácil".
+
+### Qué debemos tratar:
+
+* **Gestión de NaNs:**
+* *CVD:* KNN Imputer (ya lo tienes, es lo más pro).
+* *Hepatitis:* Imputación por mediana (es un dataset más pequeño, no conviene meter ruido con KNN si hay pocos huecos).
+
+
+* **Outliers (Ojo aquí):**
+* *CVD:* Sustituir por mediana (los outliers suelen ser errores de toma de datos).
+* *Hepatitis:* **No eliminar ni sustituir de entrada.** En bioquímica, un valor "fuera de rango" es precisamente lo que define la enfermedad (ej. AST por las nubes = Cirrosis). Solo limpia imposibilidades biológicas.
+
+
+* **Estandarización:** Aplicar Z-score a ambos.
+* **Reducción de Dimensionalidad (PCA):**
+* Úsalo como **herramienta de diagnóstico**. Si en CVD necesitas 14 componentes para el 95% de varianza y en Hepatitis solo 4, ya tienes tu primera conclusión de peso: el riesgo cardiovascular es mucho más complejo y multicausal.
+
+
+
+### Gráficos clave:
+
+1. **Matriz de Correlación:** Para detectar redundancias (eliminar variables que digan lo mismo).
+2. **Pairplot (Facetado por Target):** Este es el gráfico más importante. En CVD verás una "mancha" solapada; en Hepatitis verás "islas" separadas.
+3. **Scree Plot (Varianza acumulada):** Para justificar por qué en un dataset la información está dispersa y en el otro concentrada.
+
+### El "Output" de esta parte:
+
+Debes generar **dos Dataframes finales** por cada dataset para que todo sea comparable:
+
+1. `df_scaled`: (Solo variables numéricas + Target). Para Clustering y PCA.
+2. `df_raw_units`: (Variables con sus unidades originales + Target). Para C5.0 y Random Forest (la interpretabilidad es mayor si el médico lee "150 mmHg" que "1.2 Z-score").
+
+---
+
+## 2. Notebook 02: Modelado No Supervisado
+
+**Objetivo:** ¿Pueden los modelos "adivinar" la enfermedad sin etiquetas?
+
+### Qué buscar en cada modelo:
+
+* **K-means / K-medians:** ¿Los grupos naturales coinciden con los estadios médicos?
+* **DBSCAN / OPTICS:** ¿Hay una densidad central (Sanos) y puntos aislados (Enfermos críticos)?
+* *Hipótesis:* En CVD, DBSCAN fallará (mucho ruido). En Hepatitis, DBSCAN detectará la Cirrosis como un clúster de alta densidad o un grupo de outliers claros.
+
+
+
+### Revisión de Métricas (¿Son correctas?):
+
+Usaremos ARI, S_Dbw, Connectivity i silhouette, pero hay que revisar que esten bien aplicadas realmente
+
+- Añadir uno de como cambian los clusters si modificamos la seed o si eliminamos algunas filas! Esto da estabilidad de los clusters
+
+---
+
+## 3. Notebook 03: Modelado Supervisado
+
+**Objetivo:** Construir el sistema de triaje médico.
+
+### Qué buscar:
+
+* **C5.0 + Cost Matrix (NORMAL Y DE REGLAS):** Aquí demuestras nivel Senior. Define que **equivocarse con un enfermo (Falso Negativo) cuesta 10 veces más** que equivocarse con un sano (Falso Positivo). Verás como el Accuracy baja, pero la Sensibilidad sube.
+* **Random Forest:** Tu mejor predictor. Estudia el **Feature Importance**.
+* *Conclusión:* "En Hepatitis, el modelo se fía de la enzima GGT; en CVD, se fía de un conjunto de 10 factores".
+
+
+
+### Métricas correctas:
+
+* **Matriz de Confusión:** Para ver dónde se "lía" el modelo.
+* **Sensibilidad (Recall) en Clase Alta:** La métrica de seguridad vital.
+* **F1-Score:** El equilibrio para no dar demasiadas falsas alarmas.
+Quizs alguno mas
+
+---
+
+## 4. El Storytelling (El guion del proyecto)
+
+Para que el reclutador entienda tu valor, el hilo conductor debe ser:
+
+1. **La Premisa:** "He diseñado un pipeline de evaluación diagnóstica y lo he puesto a prueba en dos escenarios: uno de **continuum biológico** (CVD) y otro de **clases discretas** (Hepatitis)".
+2. **El Conflicto:** "El Clustering tradicional sufre en el continuum (CVD) porque no hay fronteras físicas, lo que nos obliga a movernos hacia modelos de clasificación supervisada".
+3. **La Resolución Ética:** "En entornos de alta incertidumbre (CVD), no buscamos el Accuracy más alto, sino el modelo más **seguro** (Sensitivity), aplicando matrices de coste para proteger al paciente".
+4. **La Validación:** "El mismo pipeline, al aplicarse a Hepatitis C, alcanza precisiones del 90%, demostrando que nuestras funciones son robustas cuando el dato bioquímico es nítido".
+
+**¿Te parece bien si empezamos ahora mismo con el Notebook 01 y preparamos las funciones que traten los dos datasets de golpe?** Así ahorramos mucho tiempo de código.

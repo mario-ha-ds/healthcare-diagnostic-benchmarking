@@ -1,0 +1,30 @@
+
+# 1. Exploratory Data Analysis & Preprocessing
+
+## 1.1 Introducción y Estrategia de Datos
+
+El objetivo de este notebook es transformar datos médicos en bruto en activos analíticos de alta fidelidad. A diferencia de un análisis convencional, este proyecto se ha diseñado como un **estudio comparativo de escenarios clínicos**, enfrentando dos datasets con naturalezas estadísticas y grados de entropía opuestos:
+
+### A. Cardiovascular Disease Dataset (Mendeley Data)
+
+Este conjunto de datos comprende **1,529 muestras** recolectadas entre enero de 2024 y enero de 2025. Incluye parámetros demográficos, antropométricos, clínicos y bioquímicos.
+
+* **Enfoque Analítico:** El riesgo cardiovascular se manifiesta como un sistema complejo donde las variables interactúan de forma no lineal. La frontera entre "sano" y "enfermo" es un **continuum**; por ejemplo, factores como el estilo de vida pueden compensar biomarcadores bioquímicos alterados. Esto genera una "nube" de datos con alto solapamiento, exigiendo un preprocesamiento que conserve la varianza sin añadir ruido.
+* **Referencia:** [Mendeley Data - CVD Dataset](https://data.mendeley.com/datasets/d9scg7j8fp/1)
+
+### B. Hepatitis C Virus (HCV) - Pacientes Egipcios (UCI)
+
+Contiene datos de **1,385 pacientes** sometidos a tratamiento durante 18 meses. Incluye 29 variables que abarcan desde sintomatología básica hasta marcadores hematológicos y carga viral.
+
+* **Enfoque Analítico:** A diferencia del CVD, la Hepatitis C presenta estadios clínicos más definidos por umbrales bioquímicos (como los niveles de enzimas hepáticas o carga viral). Es un escenario de **separabilidad nítida** donde los modelos deberían detectar patrones claros de progresión de la enfermedad.
+* **Referencia:** [UCI Machine Learning - HCV](https://archive.ics.uci.edu/dataset/503/hepatitis+c+virus+hcv+for+egyptian+patients)
+
+## 1.2 Hitos del Pipeline de Preprocesamiento
+
+Para garantizar la integridad del análisis, seguiremos un flujo de trabajo modularizado:
+
+1. **Gestión Inteligente de NaNs:** ... 
+2. **Tratamiento de Outliers:** Identificación de errores de toma de datos vs. indicadores patológicos (especialmente críticos en Hepatitis).
+3. **Reducción de Redundancias:** Análisis de multicolinealidad para simplificar el espacio de características.
+4. Normalizacion (standarize)
+5. **Diagnóstico de Complejidad (PCA):** Uso del Análisis de Componentes Principales para cuantificar cuánta información se requiere para explicar el 95% de la varianza en cada escenario.
