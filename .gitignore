@@ -1,0 +1,19 @@
+# --- R Standard ---
+.Rhistory
+.RData
+.Ruserdata
+*-current.R
+
+# --- RStudio ---
+.Rproj.user/
+
+# --- Dependency Management (renv) ---
+renv/library/
+renv/local/
+renv/staging/
+renv/python/
+renv/sandbox/
+
+# --- Project Outputs ---
+output/*.png
+output/*.pdf
