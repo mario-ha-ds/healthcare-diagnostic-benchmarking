@@ -214,7 +214,7 @@ cvd_typed    <- type_data(cvd_filtered, cols_cvd_cat)
 cancer_typed <- type_data(cancer_filtered, cols_cancer_cat)
 ```
 
-Para dictaminar nuestra estrategia de limpieza, analizamos el resumen estadístico de ambos conjuntos de datos.
+Como siguiente paso, para dictaminar nuestra estrategia de limpieza, analizamos el resumen estadístico de ambos conjuntos de datos.
 
 ```{r}
 # Exploración estadística de los datasets brutos
@@ -222,34 +222,42 @@ cat("--- SUMMARY: CARDIOVASCULAR DISEASE (CVD) ---\n")
 summary(cvd_typed)
 
 cat("\n--- SUMMARY: HEPATITIS C VIRUS (HCV) ---\n")
-summary(hcv_typed)
+summary(cancer_typed)
 ```
 
 El análisis exploratorio revela cuatro factores clave que condicionan de forma directa la estrategia de preprocesamiento: la presencia de valores atípicos, los valores ausentes, la disparidad de escalas entre variables y el desbalanceo en la variable objetivo. El impacto de cada uno de estos factores depende críticamente del tipo de modelo empleado.
 
 1. Valores atípicos (Outliers)
 
-Vemos indicions de la presencia de outliers en ambos dataets.En el CDV, se identifican tanto valores extremos plausibles desde el punto de vista clínico como valores claramente erróneos. El caso más evidente es estimated_ldl_mg_d_l con un valor mínimo de –18.0 mg/dL, lo cual es biológicamente imposible y apunta a un error en el cálculo (p. ej., fórmula de estimación del LDL) o en el registro de los datos. Este tipo de valores debe considerarse inválido y tratarse mediante corrección o eliminación.
+Vemos indicions de la presencia de outliers en ambos dataets. En general se identifican tanto valores extremos plausibles desde el punto de vista clínico como valores claramente erróneos.
+
+Pongamos algunos ejemplos. El caso más evidente es estimated_ldl_mg_d_l con un valor mínimo de –18.0 mg/dL, lo cual es biológicamente imposible y apunta a un error en el cálculo (p. ej., fórmula de estimación del LDL) o en el registro de los datos. Este tipo de valores debe considerarse inválido y tratarse mediante corrección o eliminación.
 
 Por otro lado, valores como por ejemplo los valores elevados de presión arterial sistólica (p. ej., un máximo de 179 mmHg frente a una media de ~125 mmHg). Aun asi, estos son clinicamente plausibles (hipertensiones severas o episodios agudos) y, en no ser exagerados, se debe valorar mantenerlos ya que pueden aportar informacion util.
 
-En el HCV tambien observamos posibles valores extremos. El caso mas destacado son los valors màxims molt alts en la càrrega viral inicial (rna_base superior a 1.2M), tot i que son biologicament plausible i representen fases agudes de la infecció que no han de ser eliminats.
+En el de Cáncer, tambien vemos posibles outliers. I es que muchas de las variables (por no decir todas) tienen valores de max que estan bastante alejados de la mediana. Un ejemplo claro es el area_worst que presenta un máximo de 4254.0 frente a una media de 880.6. Aun asi, consideramos que la mayororia de estos casos parecen ser plausibles biologicamente: celulas que debido a la malignidad o cambios reactivos se vuelvem muy grandes i salen de la media. Aquneu habra que analizarlosen detlle, no creemos que deban ser eliminados,
 
-En cualqier caso, cada uno de estos valores extremos (i los que no mencionamos) deberia de ser identificado i avaluado individualmente.
+En cualqier caso, cada uno de estos valores extremos deberia de ser identificado i avaluado individualmente.
 
 2. Valores ausentes (NaNs)
 
 En el CDV, todas las variables numéricas presentan entre 64 y 82 valores ausentes (≈5% del conjunto de datos), lo que sugiere un problema de calidad de datos relativamente sistemático y no meramente anecdótico. La eliminación de filas con valores ausentes supondría perder alrededor de un centenar de individuos, con el consiguiente riesgo de sesgo de selección y pérdida de representatividad de la muestra. Parasolucionarlo, se puede usar algnu tipo de imputacion/interpolacoin.
 
-En el HCV el conjunto de datos no presenta valores ausentes, lo que simplifica considerablemente el pipeline de preprocesamiento.
+En el cancer el conjunto de datos no presenta valores ausentes, lo que simplifica considerablemente el pipeline de preprocesamiento. Si que es verdad que aparecen variables con min = 0, lo que poodira sugerir valores nulos identificados como un 0... (ya que estamos hablando de medidadas). Sin embargo, si nos fijamos, los valores de 0.0 aparecen principalmente en:
+
+concavity_mean / sd / worst
+
+concave_points_mean / sd / worst
+
+En el dataset de Breast Cancer, estas variables miden la presencia de hendiduras en el contorno del núcleo. Una célula sana suele ser perfectamente elíptica o circular (bordes lisos). Si una célula es perfectamente lisa, la "severidad de las porciones cóncavas" (concavity) es literalmente cero. Por tanto, un 0.0 en concavidad no es un dato ausente, es un dato clínico muy valioso: nos está diciendo que ese núcleo es perfectamente regular.
 
 3. Disparidad de escalas (requisitos de escalado)
 
-Existe una heterogeneidad extrema en las escalas de las variables. Por ejemplo, en CDV coexisten variables como waist_to_height_ratio (~0.5) con otras como total_cholesterol (~200 mg/dL). Asi mismo, en HCV, el contraste es aún más pronunciado: por ejemplo, el recuento de glóbulos rojos (rbc) se sitúa en el orden de millones, mientras que el bmi oscila típicamente entre 20 y 30.
+Existe una heterogeneidad extrema en las escalas de las variables. Por ejemplo, en CDV coexisten variables como waist_to_height_ratio (~0.5) con otras como total_cholesterol (~200 mg/dL). Asi insmo, en el de cancer el contraste es aún más pronunciado; por ejemplo mientras que métricas como smoothness_mean oscilan en valores minúsculos (0.05 - 0.16), el area_worst alcanza los miles (4254). Sin un escalado previo, las variables con mayor magnitud dominarían injustamente los cálculos de distancia.
 
 4. Desbalanceo en la variable objetivo
 
-Mientras que en el escenario HCV la variable baselinehistological_staging presenta una distribución relativamente equilibrada entre clases (≈330–360 observaciones por clase), en CVD la variable objetivo de riesgo cardiovascular muestra un desbalanceo notable (p. ej., clase low claramente minoritaria frente a intermediate y high).
+En el escenario cancer Presenta una distribución relativamente equilibrada (357 benignos frente a 212 malignos), lo que permite un entrenamiento estable. No obstante, en CVD la variable objetivo de riesgo cardiovascular muestra un desbalanceo notable (p. ej., clase low claramente minoritaria frente a intermediate y high).
 
 El impacto de estos factores depende mucho del tipo de modelo:
 
@@ -268,15 +276,13 @@ Los arboles de decisión (C5.0) son intrínsecamente invariantes a la escala y r
 
 Random Forest comparte las ventajas de los árboles individuales en cuanto a robustez frente a escalas y valores extremos. Aun así, el tratamiento explícito de valores ausentes sigue siendo recomendable para maximizar la estabilidad y el rendimiento del modelo.
 
-Aqui, el fallo critico, es la disparidad de clases en el target de CVD. Los algoritmos de clasificación tienden a optimizar métricas globales (como la exactitud) que favorecen a las clases mayoritarias. Como consecuencia:
-- La frontera de decisión se desplaza hacia regiones dominadas por las clases mayoritarias.
-- La sensibilidad (recall) de la clase minoritaria tiende a ser baja.
-- Se incrementa el riesgo de infra-detección sistemática del grupo minoritario (p. ej., pacientes clasificados como low risk).
-Al contraio que con los no supervisados, es mas facil parliar esto (como matrices de costo o f1 por grupo).
+Finalmente, a diferencia de los árboles, la regrresion logistica es altamente sensible a la escala y a los outliers. Al ser una combinación lineal de predictores, una variable con magnitudes de miles eclipsaría totalmente a una de escala decimal si no se aplica estandarización. Asimismo, los outliers pueden "tirar" de la curva logística y desplazar la frontera de decisión, afectando la precisión del clasificador.
+
+En todos estos modelos, el fallo crítico es el desbalanceo en CVD. Los algoritmos tienden a optimizar la exactitud global, lo que desplaza la frontera hacia las clases mayoritarias, bajando la sensibilidad (recall) de la clase minoritaria e incrementando el riesgo de infra-detección del grupo LOW. A diferencia del clustering, aquí podemos paliar el efecto mediante matrices de costo o métricas F1 por grupo.
 
 Todos estos factores que hemos visto se tendran en cuenta en siguientes fases.
 
-## 1.5 Tratamiento de outliers
+## 1.5 Valores extremos y outliers
 
 Como dijimos, los outliers pueden afectar a nuestros modelos, principalmente a los de clasificacion.
 
@@ -295,43 +301,28 @@ L'anàlisi mitjançant el mètode IQR ens indica que la presència d'outliers é
 
 No obstant això, aquesta anàlisi posa de manifest les limitacions del mètode estadístic IQR: el sistema no ha detectat el o els valors negatius en estimated_ldl_mg_d_l que vam identificar prèviament. Això ens recorda que la detecció automàtica és una eina d'ajuda, però l'analista sempre ha d'inspeccionar tant els punts fora de rang (per confirmar si són erronis) com els valors dins del rang (per si són biològicament impossibles).
 
-Pasemos ahora a examinar el dataset de heptitis C:
-
-```{r}
-analyze_outliers(hcv_typed, "Hepatitis C Dataset")
-```
-Afortunadament no veiem cap outlier que haguem de tractar ni tant viualment  ni sergons les ditribucions i el coneixement del domini.
-
-Por tanto, solo debemos tratar con los outliers de ldl. Al ser seguramente pocos valores (incluso quizas solo uno, ya que representan solo errores de calculo o introduccion de valor), no se necesitan metodos avanzados para tratarlo, sino que con la simple subsitucion por la mediana es suficiente.
+Asi, en este dataset, simplemente ebemos asegurar que el ldl sea psibivo. Al ser outliers proviinientes de errores de caluclo/introducicon del  valor, probalbemente seran pocos outleirs (incluso seguramente solo uno). Por tanto,no necsitamos metodos avanzados pra tratarlo: con la simple susitucion por la mediana nos sirve:
 
 ```{r}
 # Aplicamos la corrección de errores lógicos (como el LDL negativo)
 cvd_no_out <- fix_logical_errors(cvd_typed)
 ```
-## 1.6. problema de magnitudes
 
-Como vimos en el summary, rna muestra nuos ordenes de magnitudes que varian de manera extrema. Al ser una magnitud que crece de manera exponencial, pued ehaber pacientes con pocos cientos y otros con mas de un millon. Aunque estos no son outliers (como vismo santeriomente i ademas sabiendo que son tdos biologicamente plausibles), deben ser tratados ya que:
-
-Models No Supervisats (Clustering): Algoritmes com K-means o DBSCAN depenen de la distància euclidiana. Si mantenim la càrrega viral en escala lineal, les diferències de milions d'unitats dominaran completament el càlcul, fent que la resta de variables (com l'edat o el BMI) siguin irrellevants. Per corregir-ho, una estandardització simple (Z-score) no és suficient, ja que només reescala les dades però manté la distorsió de l'asimetria extrema (skewness). Per tant, aplicarem una transformació logarítmica ($\log_{10}$) a totes les variables rna_. El logaritme no només redueix l'escala, sinó que contreu la distància entre valors extrems, convertint una distribució asimètrica en una de més normalitzada. Això ens permet treballar amb ordres de magnitud, que és com realment creix el virus i com l'entenen els viròlegs, assegurant que un outlier no "segresti" la formació dels clústeres.
-
-Models Supervisats (Classificació): Els arbres de decisió (com C5.0) funcionen mitjançant particions basades en llindars (splits). Són invariants a l'escala, per la qual cosa poden gestionar aquests valors extrems sense necessitat de transformació, mantenint a més la interpretabilitat clínica directa.
-
-Por tanto, usaremos solo la escala log en el dataset que sera usado para clustering, mientras que dejaremos la escala oringial en arboles de decision (para que asi las reglas generadas sean mas interpretales al tener directamente la carga viral i no su derivado)
+Pasemos ahora a examinar el dataset de cancer:
 
 ```{r}
-# Transformamos la carga viral a escala logarítmica para normalizar magnitudes
-hcv_log <- transform_hcv_log(hcv_typed)
+analyze_outliers(cancer_typed, "Breast Cancer Dataset")
 ```
 
 
-Ahora si volvemos a buscar outliers:
+Todas las variables presentan outliers.¿Cómo debemos interpretar esta "lluvia" de outliers?
+- En oncología, la malignidad se define precisamente por la aberración. Una célula cancerígena es, por definición, un "outlier" de una célula sana. Los valores extremadamente altos en area o perimeter representan núcleos celulares masivos, que son los indicadores más fiables de un tumor maligno.
+- Revisando el summary, vemos que todas las variabls tienen sentido. No hay ninguna que muestre ni un minimo o un maximo NO plausible. Por ejemplo, area_sd, con una mean de 40.33 i nu max de 542.2, represetna un otuler estadistico claro, pero no es implausible en la realidad ya que hablamos justo de cambios reacivos i tumorales que se salen de la media. Aunque estadísticamente parece un error, en una citología por PAAF esto representa un grupo de células con núcleos hipertróficos, algo común en estadios avanzados.
+- Al ser mediciones automáticas de imágenes digitalizadas, el riesgo de "error de dedo" al escribir es casi nulo. Los valores son reales.
 
-```{r}
-# Volvemos a lanzar tu función para ver el cambio
-analyze_outliers(hcv_log, "Hepatitis C Dataset")
-```
+Por tanto, so eliminaremos los outliers en el dataset de Cáncer. Si lo hiciéramos, estaríamos "limpiando" precisamente los casos que el modelo debe aprender a detectar como Malignos. Estaríamos eliminando la señal de la enfermedad para quedarnos solo con el ruido de la salud.
 
-Tras aplicar la transformación logarítmica, el cambio en la morfología de los boxplots de carga viral es revelador: rna_base observamos cajas muy compactas en la parte alta (cerca del valor 6, equivalente a $10^6$ UI/mL) con una hilera de puntos en la parte inferior. Este fenómeno indica que la gran masa de pacientes tiene una carga viral alta y homogénea, mientras que el logaritmo ha "sacado a la luz" a un subgrupo de pacientes con valores mucho más bajos que antes eran invisibles estadísticamente.No debemos eliminar estos puntos rojos, ya que no representan errores de lectura, sino una realidad clínica de gran valor: son pacientes que, por genética o respuesta temprana, presentan una replicación viral mucho menor que el promedio. En escala lineal, la diferencia entre 10 y 100.000 unidades era despreciable frente a los millones; ahora, gracias al logaritmo, el modelo tiene la sensibilidad necesaria para identificar a estos individuos como un segmento diferenciado. Por tanto, podemos seguir adelante con total seguridad, sabiendo que hemos transformado un problema de dispersión en una oportunidad de segmentación mucho más rica para el clustering.
+Esto remarca de nuevo las limitaciones de usar metorodos como el metodo IQT unicamente sin revisar los resultados. Quizas en variables que usan una distrbucion gussiana perfecta es idal, pero en la vida real i sobretodo en datos clinicos, odnde muchas veces buscamos lo "excepcional" este se debe usar solo como una ayuda de deteccion, y siempre revisar i validar los outlers a mano.
 
 ## 1.6 Valores absentes
 
@@ -365,16 +356,38 @@ Veiem que ambdues metriques tenen inconcruencies (en especial bmi amb un ~90%). 
 
 Hem optat per mantenir el criteri de correcció basat en la tolerància estricta per garantir la màxima precisió matemàtica i eliminar qualsevol rastre de "soroll" en les dades. Amb aquesta intervenció, no només esmenem els errors estructurals detectats en el BMI, sinó que homogenitzem tot el dataset sota un càlcul únic i precís, minimitzant la propagació d'errors cap a les fases de modelització.
 
+## 1.8. Standarization i division del dataset
 
-## 1.8. Standarization
+Tras haber limpiado, imputado y corregido la integridad de los datos, debemos adaptar su estructura a los requisitos de los modelos que emplearemos. No todos los algoritmos "ven" los datos de la misma forma, por lo que crearemos tres variantes de nuestros datasets para optimizar el rendimiento de cada familia de modelos.
 
-Como vimos previsamente, las variables on tienen la misma escala. En modelos basados en distancias o geometría del espacio de características, esta disparidad provoca que las variables de mayor magnitud dominen el proceso de aprendizaje, relegando a un segundo plano variables clínicamente relevantes pero numéricamente pequeñas. Por tanto, el escalado e+s imprescindible en estos contextos. 
+algoritme ens requereix fer una cosa o un altre.
 
+Para empezar, Como observamos en el análisis exploratorio, variables como el area_worst (miles) y smoothness_mean (decimales) conviven en escalas totalmente dispares. En modelos basados en distancias o geometría del espacio de características (como kmeans, dbcan o regreison logistica), esta disparidad provoca que las variables de mayor magnitud dominen el proceso de aprendizaje, relegando a un segundo plano variables clínicamente relevantes pero numéricamente pequeñas. Por tanto, el escalado e+s imprescindible en estos contextos. 
 No obstante, los modelos de arboles no se ven perjudicados por esto (al ser modelos con reglas de corte, les es indiferent l'escala) i de hecho se ven favorecidos de no tocarlas (ya que las reglas se hacen mas interpretables, no es lo mismo decir que el riesgo atumenta en 200 de ldl que en 0,9).
 
-Por tanto, nuestra estrategia aqui sera estandarizar dos datsets los cuales seran usados para metodos no supervisados que lo requieren (i por tanto usaremos, en hcv, el que tiene escla log en dna). Par alosno supervisados, usaremos las versiones previas para garantizar que mantengan la escala original
+Para solucionar esto, aplicaremos la estandarización Z-score en los contextos que lo requieran. Esta técnica transforma cada valor $x$ restándole la media $\mu$ y dividiéndolo por la desviación estándar $\sigma$:$$z = \frac{x - \mu}{\sigma}$$El resultado es un dataset donde cada variable tiene una media de 0 y una desviación estándar de 1, permitiendo que todas "compitan" en igualdad de condiciones en el espacio vectorial.
 
-Aqui aplicaremos estandarizacion por z-score la cual ... (añadir cual es, la formula matematica i como funciona)
+Por otro lado, En el dataset CVD, contamos con factores cualitativos (sexo, tabaquismo, etc.). Para el Aprendizaje No Supervisado (K-means y DBSCAN), estas variables presentan un problema: no se puede calcular una distancia euclídea real entre "FUMADOR" y "NO FUMADOR". Intentar codificarlas numéricamente (1 y 2) induciría un error biológico, ya que el algoritmo interpretaría que existe una magnitud o un orden que no es real, distorsionando la formación de los clústeres. Por tanto, para el clustering, nos quedaremos exclusivamente con el núcleo numérico.
+
+En cambio, los Modelos Supervisados sí pueden integrar estas etiquetas:
+
+- Árboles (C5.0 y Random Forest):  Son capaces de incorporar de manera nativa las categoricas sin necesidad de tratarlas (codificarlas). ... (EXPLICA BREVEMENTE COMO LAS TRATA I ES CAPAZ DE CREAR RAMIFICACIONES CON ELLAS)
+- Regresión Logística: diferencia de los árboles, este modelo es puramente matemático y no admite texto. Sin embargo el algoritmo es capaz de realizar un Dummy Coding  (one-hot encoding) Por ejemplo, si una variable categórica tiene tres niveles (p. ej., “No fumador”, “Exfumador” y “Fumador”), la regresión logística elige una categoría de referencia (por ejemplo, “No fumador”) y crea internamente dos variables binarias. El modelo estima entonces cómo cambia la probabilidad del evento al pertenecer a cada una de las otras categorías en comparación con la categoría de referencia.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ```{r}
 # Estandarizamos los tres datasets
@@ -386,26 +399,6 @@ mean(cvd_scaled$age)
 sd(cvd_scaled$age)
 ```
 
-## 1.10 Categoricas
-
-Arribats a aquest punt, hem netejat, imputat i corregit la integritat de les dades. Tanmateix, per procedir amb rigor científic, no podem utilitzar un dataset únic per a tots els models. La naturalesa de les variables categòriques ens obliga a prendre una decisió arquitectònica.
-
-A diferència dels models supervisats, els algorismes de clustering que utilitzarem (K-means i DBSCAN) es basen exclusivament en càlculs de distància euclidiana. Per tant, les variables categoriques com les de cvd (que son strings o lletres) no es poden aplica raqui  ja que no son nombres matematics. Es podira pensar en codificar (per exemple fer que male sigiu 1 i famale sigui 2), i aixo es el que s'ha fet a hcv per defecte (ens va venir ja codificat). Tot i aixo, aixo tampoc soluciona el problema. Si les deixéssim així, l'algorisme interpretaria que la "distància" entre un home i una dona és de 1 unitat, intentant comparar-la matemàticament amb la distància entre tenir 20 o 60 anys. Això no té sentit biològic.
-Les variables categòriques no tenen un ordre ni una magnitud real. En un espai geomètric, intentar barrejar "peres amb pomes" (unitats de mesura reals amb etiquetes discretes) distorsiona la forma dels clústers i genera agrupacions artificials basades en codis en lloc de patologies.
-
-Per tant, per als models no supervisats, eliminarem completament les variables categòriques i ens quedarem només amb el cor numèric de les dades, prèviament estandarditzat.
-
-No obstant, els arbres de desicio (com a minim els actuals com c5.0 o random forest) si que son capços de incloure categoriques: no fa falta ni codificarles, ja son capaços de crer talls en base a elles. funcoinen aixi: ...(explica como hacen los cortes metodos como c5.0 o random fores). Per tant, en els dataets per a aquestos els mantindrem.
-
-Per tant, en aquest fase, crearem 4 datasets diferenciats.
-Per a models no supervisats:
-cvd_scaled: Imputació KNN, sense outliers, sanitiztzat, sense categòriques i estandarditzat ($Z$-score).
-hcv_scaled: Ràtio $\log_{10}$ aplicat a rna_base, sense categòriques i estandarditzat ($Z$-score).
-Per a supervisats:
-cvd_super: Imputació KNN, sense outliers, sanitiztzat. Manté les variables categòriques com a factors i les escales originals (sense estandarditzar), permetent regles del tipus: "Si Colesterol > 240 i Fumador = SÍ".
-hcv_super: Escala original (sense $\log_{10}$ ni $Z$-score). Manté les variables categòriques per permetre particions basades en la presència/absència de símptomes (Febre, Icterícia, etc.).
-
-Ademas, al geerar la partcion, nos aseguraremos que las categoricas esten en el mformato adecuado. Byuscamos que tengan la etiqueta completa, NO codificada, i e mayusculas. Asi, en CVD nos asegurarewmos que no haya abreviaciones (por ej subsituynedo YES en Y), en HCV decodificaremos (por ej poniendo MALE en 1), i aseguraremos las caps. Esto nos da coherencia total i, ademas, mejor interpretabilidad.
 
 ```{r}
 # Despachamos los datasets usando los objetos que ya hemos procesado previamente
@@ -489,3 +482,7 @@ print("Nuevas coordenadas (Scores) del Paciente 1 en CVD:")
 head(res_pca_cvd$scores[1, 1:5])
 ```
 
+
+## 1.11. representaicon visual
+
+distribuciones de numaercias segun target, entre otroxs

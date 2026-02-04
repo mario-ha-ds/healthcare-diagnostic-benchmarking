@@ -137,6 +137,11 @@ type_data <- function(df, cat_cols) {
 
 
 
+
+
+
+
+
 #' Detección y Visualización de Outliers (IQR)
 #'
 #' 1. Calcula outliers basándose en el rango intercuartílico (1.5 * IQR).
@@ -214,26 +219,6 @@ analyze_outliers <- function(df, title_suffix = "") {
 
 
 
-
-
-#' Imputación de Valores Ausentes mediante KNN
-#'
-#' @param df Dataframe con valores NA (normalmente cvd_clean).
-#' @param k Número de vecinos para el cálculo de distancias (por defecto 5).
-#' @return Dataframe completo con los valores ausentes imputados.
-#' @export
-impute_data_knn <- function(df, k = 5) {
-  
-  # Aplicamos kNN de la librería VIM
-  # imp_var = FALSE evita la creación de columnas auxiliares de control
-  df_imputed <- VIM::kNN(df, k = k, imp_var = FALSE)
-  
-  return(df_imputed)
-}
-
-
-
-
 #' Corrección de Errores Lógicos (Valores Negativos)
 #'
 #' Identifica valores negativos en columnas numéricas donde no deberían existir
@@ -268,25 +253,27 @@ fix_logical_errors <- function(df) {
 
 
 
-#' Transformación Logarítmica de Carga Viral
+
+
+
+
+
+#' Imputación de Valores Ausentes mediante KNN
 #'
-#' Aplica log10 a la variable rna_base para normalizar su distribución
-#' y reducir el sesgo de magnitud en algoritmos de distancias.
-#' @param df Dataset de HCV.
-#' @return Dataset con la variable rna_base transformada a log10.
+#' @param df Dataframe con valores NA.
+#' @param k Número de vecinos para el cálculo de distancias (por defecto 5).
+#' @return Dataframe completo con los valores ausentes imputados.
 #' @export
-transform_hcv_log <- function(df) {
+impute_data_knn <- function(df, k = 5) {
   
-  df_transformed <- df %>%
-    # Usamos log10 por ser el estándar clínico para carga viral
-    mutate(rna_base = log10(rna_base + 1)) %>%
-    # Renombramos para que sea explícito en el resto del notebook
-    rename(log_rna_base = rna_base)
+  # Aplicamos kNN de la librería VIM
+  # imp_var = FALSE evita la creación de columnas auxiliares de control
+  df_imputed <- VIM::kNN(df, k = k, imp_var = FALSE)
   
-  message("Variable rna_base transformada a log_rna_base (escala log10).")
-  
-  return(df_transformed)
+  return(df_imputed)
 }
+
+
 
 
 
@@ -334,6 +321,8 @@ audit_and_fix_integrity <- function(df, tolerance = 0.01) {
   
   return(df_fixed)
 }
+
+
 
 
 
