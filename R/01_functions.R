@@ -1,15 +1,43 @@
-#' Load and Clean Column Names
+#' Load and Clean Medical Data
 #'
-#' Reads a CSV file from a given path and standardizes column names 
-#' using janitor::clean_names() for a consistent workflow.
+#' Lee archivos médicos (CSV o DATA). Si detecta el dataset de Breast Cancer (wdbc),
+#' inyecta automáticamente los nombres de las columnas clínicas siguiendo el estándar
+#' de la UCI (Mean, SD, Worst).
 #'
-#' @param path String. The relative or absolute path to the .csv file.
-#' @return A tibble with standardized column names.
+#' @param path String. Ruta al archivo .csv o .data.
+#' @return A tibble con nombres estandarizados y limpios.
 #' @export
 load_medical_data <- function(path) {
-  readr::read_csv(path, show_col_types = FALSE) %>%
-    janitor::clean_names()
+  
+  # Detectamos si es el archivo específico de Breast Cancer de la UCI
+  is_wdbc <- grepl("wdbc", path)
+  
+  if (is_wdbc) {
+    # Definimos las 10 características base
+    base_feats <- c("radius", "texture", "perimeter", "area", "smoothness", 
+                    "compactness", "concavity", "concave_points", "symmetry", "fractal_dimension")
+    
+    # Creamos los nombres con los sufijos clínicos solicitados
+    wdbc_names <- c("id", "diagnosis", 
+                    paste0(base_feats, "_mean"), 
+                    paste0(base_feats, "_sd"), 
+                    paste0(base_feats, "_worst"))
+    
+    # Cargamos el archivo sin cabecera (header = FALSE) e inyectamos el vector de nombres
+    data <- readr::read_csv(path, col_names = wdbc_names, show_col_types = FALSE)
+  } else {
+    # Carga estándar para otros datasets con cabecera (como CVD)
+    data <- readr::read_csv(path, show_col_types = FALSE)
+  }
+  
+  # janitor::clean_names() asegura que todo sea snake_case consistente
+  return(janitor::clean_names(data))
 }
+
+
+
+
+
 
 
 
@@ -46,29 +74,36 @@ get_unique_valid_values <- function(df, n = 10) {
 
 
 
-#' Purga de Data Leakage y Variables Temporales
+#' Purga de *Data Leakage* y Variables No Informativas
 #'
-#' Elimina atributos que contienen información del target o datos post-diagnóstico.
-#' @param df_cvd Dataframe crudo de CVD.
-#' @param df_hcv Dataframe crudo de HCV.
-#' @return Una lista con ambos datasets purgados.
+#' Esta función elimina variables que introducen *data leakage* (atributos
+#' derivados directa o indirectamente del target) y metadatos no predictivos
+#' (por ejemplo, identificadores únicos), con el objetivo de garantizar
+#' un pipeline de modelado válido y libre de información espuria.
+#'
+#' @param df_cvd Dataframe crudo del dataset de riesgo cardiovascular (CVD).
+#' @param df_cancer Dataframe crudo del dataset de cáncer de mama.
+#' @return Una lista con ambos datasets depurados y listos para el preprocesamiento.
 #' @export
-purge_medical_leakage <- function(df_cvd, df_hcv) {
+pre_filtering <- function(df_cvd, df_cancer) {
   
-  # Purga CVD: Eliminamos scores calculados y redundancias de formato
+  # Purga CVD: Eliminamos scores, categorías redundantes
+  # y representaciones complejas de variables clínicas
   cvd_purged <- df_cvd %>% 
-    dplyr::select(-cvd_risk_score, 
-                  -blood_pressure_category, 
-                  -blood_pressure_mm_hg)
+    dplyr::select(
+      -cvd_risk_score, 
+      -blood_pressure_category, 
+      -blood_pressure_mm_hg,
+      -height_cm
+    )
   
-  # Purga HCV: Somos puristas. Eliminamos TODO lo que no sea Baseline (Día 0)
-  # Esto incluye cualquier medición en la semana 4, 12, etc.
-  hcv_purged <- df_hcv %>% 
-    dplyr::select(-alt4, -alt_12, -alt_24, -alt_36, -alt_48, -alt_after_24_w,
-                  -rna_4, -rna_12, -rna_eot, -rna_ef)
+  # Purga Breast Cancer: Eliminamos el identificador único del paciente
+  cancer_purged <- df_cancer %>% 
+    dplyr::select(-id)
   
-  return(list(cvd = cvd_purged, hcv = hcv_purged))
+  return(list(cvd = cvd_purged, cancer = cancer_purged))
 }
+
 
 
 
@@ -85,7 +120,7 @@ purge_medical_leakage <- function(df_cvd, df_hcv) {
 #' @param cat_cols Character vector. The names of the columns to be converted to factors.
 #' @return A dataframe with optimized categorical and numerical types.
 #' @export
-type_medical_data <- function(df, cat_cols) {
+type_data <- function(df, cat_cols) {
   df %>%
     dplyr::mutate(
       # Convertimos a factor solo las columnas que le pedimos
@@ -327,25 +362,43 @@ standardize_data <- function(df) {
 
 
 
-#' Despacho Final de Datasets por Modelo
+#' Partición y Decodificación de Datasets Médicos
 #' 
-#' Organiza los datasets ya procesados, eliminando categóricas donde no tocan.
-#' @param cvd_sc Dataset CVD escalado.
-#' @param hcv_sc Dataset HCV escalado (con log ya aplicado).
-#' @param cvd_sn Dataset CVD limpio/imputado (escala original).
-#' @param hcv_ty Dataset HCV tipado/limpio (escala original).
-#' @return Lista con los 4 datasets finales.
+#' Finaliza la preparación creando las rutas de Clustering y Supervisados.
+#' Decodifica las variables de CVD y HCV a palabras completas y MAYÚSCULAS.
+#' 
 #' @export
-finalize_datasets <- function(cvd_sc, hcv_sc, cvd_sn, hcv_ty) {
+partition_medical_datasets <- function(cvd_sc, hcv_sc, cvd_sn, hcv_ty) {
   
-  # 1. Datasets para CLUSTERING (Solo numéricas, ya escaladas)
+  # 1. RUTA CLUSTERING: Solo numéricas y ya escaladas
   cvd_cluster <- cvd_sc %>% dplyr::select(where(is.numeric))
   hcv_cluster <- hcv_sc %>% dplyr::select(where(is.numeric))
   
-  # 2. Datasets para SUPERVISADOS (Mantienen categóricas, escala original)
-  # Solo los renombramos para seguir tu nomenclatura ideal
-  cvd_super <- cvd_sn
-  hcv_super <- hcv_ty
+  # 2. RUTA SUPERVISADOS: Decodificación Total y Mayúsculas
+  
+  # CVD: Traducimos etiquetas abreviadas a palabras completas
+  cvd_super <- cvd_sn %>%
+    mutate(
+      sex = case_when(sex == "F" ~ "FEMALE", sex == "M" ~ "MALE", TRUE ~ as.character(sex)),
+      smoking_status = case_when(smoking_status == "Y" ~ "YES", smoking_status == "N" ~ "NO", TRUE ~ as.character(smoking_status)),
+      diabetes_status = case_when(diabetes_status == "Y" ~ "YES", diabetes_status == "N" ~ "NO", TRUE ~ as.character(diabetes_status)),
+      family_history_of_cvd = case_when(family_history_of_cvd == "Y" ~ "YES", family_history_of_cvd == "N" ~ "NO", TRUE ~ as.character(family_history_of_cvd)),
+      # Convertimos todo a factor y aseguramos MAYÚSCULAS
+      across(where(is.character) | where(is.factor), ~ factor(toupper(as.character(.x))))
+    )
+  
+  # HCV: Decodificamos códigos numéricos y pasamos a MAYÚSCULAS
+  hcv_super <- hcv_ty %>%
+    mutate(
+      gender = factor(gender, levels = c(1, 2), labels = c("MALE", "FEMALE")),
+      across(c(fever, nausea_vomting, headache, diarrhea, 
+               fatigue_generalized_bone_ache, jaundice, epigastric_pain),
+             ~ factor(.x, levels = c(1, 2), labels = c("ABSENT", "PRESENT"))),
+      # Aseguramos que el resto (como el target) también esté en MAYÚSCULAS
+      across(where(is.factor), ~ factor(toupper(as.character(.x))))
+    )
+  
+  message("Datasets particionados. Etiquetas decodificadas y en MAYÚSCULAS.")
   
   return(list(
     cvd_cluster = cvd_cluster,
@@ -354,6 +407,11 @@ finalize_datasets <- function(cvd_sc, hcv_sc, cvd_sn, hcv_ty) {
     hcv_super   = hcv_super
   ))
 }
+
+
+
+
+
 
 
 
@@ -382,4 +440,112 @@ plot_correlation_matrix <- function(df, title = "Matriz de Correlación") {
                               outline.color = "white",
                               ggtheme = ggplot2::theme_minimal())
   print(p)
+}
+
+
+
+
+
+
+#' Gestión de Redundancias Manuales para Modelos Supervisados
+#' 
+#' Elimina variables con alta correlación (>0.85) o redundancia clínica 
+#' basada en el conocimiento del dominio.
+#' 
+#' @param df_cvd Dataset de CVD supervisado.
+#' @param df_hcv Dataset de HCV supervisado.
+#' @return Lista con los datasets optimizados.
+#' @export
+handle_medical_redundancies <- function(df_cvd, df_hcv) {
+  
+  # 1. Optimización CVD
+  # Eliminamos precursores del BMI y Ratio, y la estimación de LDL
+  cvd_optimized <- df_cvd %>%
+    dplyr::select(
+      -height_m, -height_cm, -weight_kg, # Ya representados por BMI
+      -abdominal_circumference_cm,       # Ya representado por Waist-to-Height Ratio
+      -estimated_ldl_mg_d_l              # Eliminamos el estimado, preferimos Total Cholesterol
+    )
+  
+  # 2. Optimización HCV
+  # Según el análisis de correlación, no hay redundancias críticas (>0.85)
+  hcv_optimized <- df_hcv
+  
+  message("Redundancias eliminadas en CVD. HCV se mantiene íntegro por baja correlación.")
+  
+  return(list(
+    cvd = cvd_optimized,
+    hcv = hcv_optimized
+  ))
+}
+
+
+
+
+#' Análisis de Componentes Principales "By Hand"
+#' 
+#' Ejecuta el flujo matemático completo del PCA sin librerías externas.
+#' 
+#' @param df Dataset numérico.
+#' @param title Título para el Scree Plot.
+#' @export
+perform_manual_pca <- function(df, title = "PCA: Análisis de Varianza") {
+  
+  # 1. Aseguramos Centrado y Escalado (Matriz Z)
+  # Aunque vengan escalados, por seguridad matemática lo aplicamos
+  X <- as.matrix(df)
+  X_c <- scale(X, center = TRUE, scale = TRUE)
+  n <- nrow(X_c)
+  
+  # 2. Cálculo de la Matriz de Covarianzas (S)
+  # S = (1/(n-1)) * Xt * X
+  S <- (1 / (n - 1)) * (t(X_c) %*% X_c)
+  
+  # 3. Descomposición en Autovalores (lambda) y Autovectores (w)
+  # Usamos la función base eigen() que resuelve Sw = lambda*w
+  ev <- eigen(S)
+  autovalores <- ev$values
+  autovectores <- ev$vectors
+  
+  # Asignamos nombres para que sea interpretable
+  colnames(autovectores) <- paste0("PC", 1:ncol(autovectores))
+  rownames(autovectores) <- colnames(df)
+  
+  # 4. Proyección de los datos (Scores)
+  # Z = Xc %*% W
+  scores <- X_c %*% autovectores
+  colnames(scores) <- paste0("PC", 1:ncol(scores))
+  
+  # 5. Cálculo de la Varianza Explicada (PVE)
+  pve <- autovalores / sum(autovalores)
+  pve_cum <- cumsum(pve)
+  
+  # --- Visualización (Scree Plot) ---
+  plot_data <- data.frame(
+    PC = 1:length(pve),
+    Var = pve,
+    CumVar = pve_cum
+  )
+  
+  p <- ggplot(plot_data, aes(x = PC)) +
+    geom_bar(aes(y = Var), stat = "identity", fill = "#2C3E50", alpha = 0.7) +
+    geom_line(aes(y = CumVar), group = 1, color = "#E74C3C", size = 1) +
+    geom_point(aes(y = CumVar), color = "#E74C3C", size = 2) +
+    geom_hline(yintercept = 0.85, linetype = "dashed", color = "#27AE60") +
+    annotate("text", x = 2, y = 0.88, label = "UMBRAL 85%", color = "#27AE60", fontface = "bold") +
+    labs(title = title,
+         subtitle = "Implementación matemática manual (Eigen-decomposition)",
+         x = "Componentes Principales", y = "% Varianza") +
+    theme_minimal()
+  
+  print(p)
+  
+  # Devolvemos una lista con todo el rastro matemático
+  return(list(
+    autovalores = autovalores,
+    loadings = autovectores,
+    scores = scores,
+    pve = pve,
+    pve_cum = pve_cum
+  ))
 }

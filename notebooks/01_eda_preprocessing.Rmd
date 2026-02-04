@@ -1,4 +1,4 @@
----
+ ---
 editor_options: 
   markdown: 
     wrap: sentence
@@ -18,8 +18,13 @@ source("../R/01_functions.R")
 
 ## 1.1 Introducción y Estrategia de Datos
 
-El objetivo de este notebook es transformar datos médicos brutos en activos analíticos de alta fidelidad para en futuros notebooks aplicar tanto modelos de clasificacion no supervisados (k means, k medians i dbscan) asi como de preciccion supervisados (arvboles de decision c5.0 i random forest).
-En lugar de un análisis aislado, enfrentaremos dos datasets con naturalezas estadísticas presuntamente opuestas para poner a prueba la robustez de nuestro pipeline de minería de datos.
+El objetivo de este proyecto es transformar datos médicos brutos en activos analíticos de alta fidelidad. A lo largo de este y los próximos notebooks, desplegaremos una estrategia integral de aprendizaje automático que abarca:
+
+Aprendizaje No Supervisado: Evaluación de la estructura natural de los datos mediante K-means y DBSCAN.
+
+Aprendizaje Supervisado: Modelado predictivo comparando Regresión Logística (baseline), C5.0 con matriz de costes (enfoque clínico) y Random Forest (potencia no lineal).
+
+En lugar de un análisis aislado, enfrentaremos dos datasets con naturalezas estadísticas opuestas para poner a prueba la robustez de nuestro pipeline.
 
 ### A. Cardiovascular Disease Dataset (Mendeley Data)
 
@@ -30,41 +35,48 @@ Hipótesis Analítica: El riesgo cardiovascular se manifiesta como un sistema co
 A diferencia de otras patologías, sospechamos que no existe una frontera nítida de diagnóstico, sino un continuum biológico.
 Por ejemplo, un biomarcador alterado (como el colesterol) podría verse compensado por un estilo de vida protector (actividad física alta), difuminando los límites entre grupos de riesgo.
 
-Expectativa: Basándonos en esta naturaleza sistémica, nuestra hipótesis de trabajo es que el dataset presentará una "nube" de datos con un alto grado de solapamiento (Entropía).
-Esto supondrá un reto para los algoritmos de clustering, que podrían tener dificultades para identificar fronteras físicas claras, y nos obligará a diseñar un preprocesamiento que preserve al máximo la varianza original. (ADAPTALO. ME GUSTAPERO RECUERDA QUE NO SOLO HAREMOS CLUSTERING SINO TAMBIEN PREDICCION, SUPERVISADOS)
+Expectativa: Basándonos en esta naturaleza sistémica, nuestra hipótesis de trabajo es que el dataset presentará una estructura de "nube" con un alto grado de solapamiento (Entropía). Esto supone un desafío estratégico para nuestro pipeline:
+
+En Clustering: Esperamos que los algoritmos tengan dificultades para identificar fronteras físicas claras debido al solapamiento de los puntos. creemos que l modelo sera incapadz de crear islas claras debido al espectro continuum.
+
+En Predicción (Supervisados): La ambigüedad de las fronteras exigirá el uso de modelos de clasificación robustos y técnicas de regularización. La Regresión Logística podría sufrir al intentar trazar una línea simple en un espacio tan mezclado y los arboles de decision lo tendrandificil para encontrar los pnutosde corte o ramificacion. Este dataset representa el "escenario de mundo real" donde la predicción precisa es un reto.
 
 -   **Referencia:** [Mendeley Data - CVD Dataset](https://data.mendeley.com/datasets/d9scg7j8fp/1)
 
-### B. Hepatitis C Virus (HCV) - Pacientes Egipcios (UCI)
+### B. Breast Cancer Wisconsin (Diagnostic) - UCI
 
-Contiene datos de **1,385 pacientes** sometidos a tratamiento durante 18 meses.
-Incluye 29 variables que abarcan desde sintomatología básica hasta marcadores hematológicos y carga viral durante el tratamiento.
+Este dataset clínico contiene mediciones morfológicas obtenidas a partir de imágenes digitalizadas de una aspiración con aguja fina (FNA) de una masa mamaria de 569 pacientes. El dataset se compone de 30 variables numéricas continuas que describen características geométricas y de textura de los núcleos celulares de celulas tumorales (radio, perímetro, área, concavidad, etc.).
 
-Hipótesis Analítica: En contraposición al caso cardiovascular, el diagnóstico de Hepatitis C se apoya en marcadores bioquímicos y virales mucho más específicos.
+Hipótesis Analítica: En contraposición al caso cardiovascular (CVD), donde el riesgo es una condición sistémica y difusa, la malignidad celular en oncología presenta una firma física drástica y mensurable. Las células malignas suelen romper la simetría y las dimensiones de las células sanas, lo que debería traducirse en una estructura de datos con fronteras de decisión mucho más marcadas.
 
-Expectativa: Creemos que este escenario presentará una separabilidad nítida.
-Al depender de umbrales enzimáticos y cargas virales concretas, esperamos encontrar "islas" de datos o clústeres bien definidos.
-Este dataset actuará como nuestro benchmark de validación: si el pipeline funciona correctamente, aquí deberíamos obtener métricas de clasificación y clustering significativamente superiores a las de CVD. (ADAPTALO. ME GUSTAPERO RECUERDA QUE NO SOLO HAREMOS CLUSTERING SINO TAMBIEN PREDICCION, SUPERVISADOS)
+Expectativa: Creemos que este escenario presentará una separabilidad nítida debido a la alta correlación entre la morfología celular y el diagnóstico. Al depender de mediciones físicas precisas y no de sintomatología subjetiva, este dataset actuará como nuestro benchmark de validación:
 
--   **Referencia:** [UCI Machine Learning - HCV](https://archive.ics.uci.edu/dataset/503/hepatitis+c+virus+hcv+for+egyptian+patients)
+En Clustering: Esperamos encontrar "islas" de datos o clústeres casi perfectamente definidos (Benign vs. Malignant) en el espacio proyectado por el PCA.
+
+En Predicción (Supervisados): Al existir una diferencia biológica tan clara, Esperamos que la Regresión Logística alcance una precisión alta debido a la probable separabilidad lineal del dataset.ADEMAS, Tanto C5.0 como Random Forest deberían alcanzar métricas de excelencia (Accuracy y F1-Score >90%), validando que nuestro pipeline es capaz de detectar señales biológicas claras cuando estas existen.
+
+Referencia: [UCI Machine Learning - Breast Cancer Wisconsin (Diagnostic)] (https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic)
 
 
 ## 1.2 Data loading ang initial exploration
 
 Cargamos ambos datasets desde el directorio data/raw/.
-En esta fase, aplicamos janitor::clean_names() para estandarizar los nombres de cada atributo.
+Con el dataset dew CVD todo bien (es un clasoico csv con las cabezeras) i es facil de cargar. El problema llega con el dataset de cancer, el cual, al ser antiguo, no es un .csv sino que es un .data. este, ademas, no tiene las cabeceras. Por tanto, en la funcion de carga, hemos tenido que declarar manualmente losnombres de cada varable (cabeceras) en base a la informacion de la pagina de la UCI mencionada antes. 
 
 ```{r}
+# 1. Carga del Caos (CVD)
 cvd_raw <- load_medical_data("../data/raw/CVD Dataset.csv")
-hcv_raw <- load_medical_data("../data/raw/HCV-Egy-Data.csv")
+# 2. Carga del Orden (Breast Cancer)
+# La función detectará 'wdbc.data' y pondrá los 32 nombres automáticamente
+cancer_raw <- load_medical_data("../data/raw/wdbc.data")
 
 # Inspección rápida
 head(cvd_raw, 3)
-head(hcv_raw, 3)
+head(cancer_raw, 3)
 ```
 
 Una práctica fundamental antes de cualquier proceso de limpieza es realizar una inspección visual de los valores posibles por cada atributo.
-Esto nos permite identificar rápidamente si una variable es continua, discreta o si requiere una recodificación de etiquetas.
+Esto nos permite identificar rápidamente la naturaleza de la variabele (discreta, continua...)
 
 Extraeremos los 10 primeros valores únicos y válidos de cada variable para ambos escenarios médicos.
 Empecemos con el de CDV:
@@ -77,30 +89,15 @@ get_unique_valid_values(cvd_raw, 10)
 Identificamos variables categóricas con etiquetas explícitas de texto (como sex: "F"/"M", smoking_status: "Y"/"N" o cvd_risk_level: "LOW"/"HIGH").Tambien vemos numericas, algunas enteras (age) o algunas decimadels (como bmi).
 Destaca blood_pressure_mm_hg (ej. "125/79"), que es una cadena de texto que ya ha sido desglosada en el dataset original en systolic_bp y diastolic_bp
 
-Tambien destacan dos variables:: "cvd_risk_level" con (LOW, INTERMEDIARY I HIGH) i "cvd_risk_score" (numérica continua).
-El hecho de que el riesgo se pueda expresar mediante un score continuo refuerza nuestra tesis inicial: el riesgo cardiovascular no es un interruptor binario, sino un continuum biológico.
-Esta naturaleza numérica subyacente es la que anticipa la dificultad de los algoritmos para encontrar fronteras nítidas, ya que el paso de un nivel a otro es gradual y no discreto.
-Auqneu ambas son candidatas a ser targeten los modelos supervisados decidimos seleccionar cvd_risk_level como variable objetivo por tres motivos: Consistencia: Permite comparar ambos datasets bajo un marco común de targets categoricos.
-Utilidad Clínica: Facilita el diseño de sistemas de triaje médico donde el error se gestiona mediante matrices de coste (ej. evitar falsos negativos en riesgo alto).
-Validación de Clustering: Actúa como ground truth para medir si el aprendizaje no supervisado es capaz de identificar fronteras en datos altamente solapados.
-
 Pasemos con el de HCV:
 
 ```{r}
 # 
-get_unique_valid_values(hcv_raw, 10)
+get_unique_valid_values(cancer_raw, 10)
 ```
 
-A diferencia del dataset de CVD, aquí la información categórica está codificada numéricamente (Label Encoding previo).
-Por ejemplo, gender se presenta como 1 y 2 en lugar de etiquetas de texto, e igual pasa con las otras categoricas (fever, nausea_vomiting...).
-Tambien vemos otras numericas, a prirori todas enteras, pero con magnitudes muy diferentes (vemos que, por ej, rna_eot llega a numeros muy altas en comparacion con, por ej, age).
+A diferencia del dataset de CVD, qui vems que  todas las variables son numericas (con excepcion de el que sera nuestro target "diagnosis"). Destaca ID que, al ser un valor de ... no es necesaro para identificar la diagnosis i po tanto debera ser retirado.
 
-A destacar, se observan mediciones repetidas de la enzima ALT en diferentes momentos (alt_1, alt_4, alt_12, etc.), lo que sugiere una estructura de datos longitudinal que deberemos gestionar para evitar multicolinealidad en el análisis de clustering.
-
-Para el dataset de Hepatitis C, la variable objetivo seleccionada es baselinehistological_staging.
-Naturaleza Discreta: A diferencia del CVD, esta variable representa estadios histológicos definidos (del 1 al 4) basados en el daño hepático real.
-Escenario de Control: Al ser grupos presumiblemente más separables por marcadores bioquímicos (enzimas y carga viral), funcionará como el benchmark de éxito para validar la sensibilidad de nuestro pipeline.
-Impacto Diagnóstico: Clasificar correctamente el estadio es crítico para determinar el protocolo de tratamiento antiviral y la urgencia del seguimiento.
 
 ## 1.3 Diccionario de Variables
 
@@ -108,10 +105,15 @@ En base a lo anteior, i a lo extraido de las paginas de obtencion de los dataset
 
 ### A. Cardiovascular Disease Dataset (CVD)
 
-**Dimensiones:** 1529 observaciones x 22 variables.
+Este dataset es un conjuto de 1529 observaciones con 22 tanto cateoicas como numericas que describen diferentes caracteirsticas de los pacientes (en ambitos muy variados como demografia, habitos o parametro bioquimicos) i ofrecen el grado de riesgo cardiovascular (recodigo en dos variables que prepresentan la misma realidad: cvd_risk_level -siendo este 3 3posibles vcalores alto, medio i bajo- i cvd_risk _Score -siendo este una escala-). El hecho de que el riesgo se pueda expresar mediante un score continuo refuerza nuestra tesis inicial: el riesgo cardiovascular no es un interruptor binario, sino un continuum biológico.
+Esta naturaleza numérica subyacente es la que anticipa la dificultad de los algoritmos para encontrar fronteras nítidas, ya que el paso de un nivel a otro es gradual y no discreto.
+Auqneu ambas son candidatas a ser targeten los modelos supervisados decidimos seleccionar cvd_risk_level como variable objetivo por tres motivos:
+- Permite comparar ambos datasets bajo un marco común de targets categoricos.
+- Facilita el diseño de sistemas de triaje médico donde el error se gestiona mediante matrices de coste (ej. evitar falsos negativos en riesgo alto).
+- Actúa como ground truth para medir si el aprendizaje no supervisado es capaz de identificar fronteras en datos altamente solapados. un dato continuo no permite evaluar lo discreto de x islas.
 
-| Variable | Descripción | Tipo Analítico | Valores Observados / Categorías |
-|------------------|------------------|------------------|------------------|
+| Variable | Descripción | Tipo Analítico | Posibles Valores (Muestra) |
+| --- | --- | --- | --- |
 | `sex` | Género del paciente | Categórica | "F", "M" |
 | `age` | Edad en años | Numérica | 32, 55, 44, 58... |
 | `weight_kg` | Peso corporal | Numérica | 69.1, 118.7, 108.3, 99.5... |
@@ -119,108 +121,97 @@ En base a lo anteior, i a lo extraido de las paginas de obtencion de los dataset
 | `height_cm` | Altura en centímetros | Numérica | 171, 169, 183, 186... |
 | `bmi` | Índice de Masa Corporal | Numérica | 23.6, 41.6, 26.9, 33.4... |
 | `abdominal_circumference_cm` | Perímetro abdominal | Numérica | 86.2, 82.5, 106.7, 96.6... |
-| `blood_pressure_mm_hg` | Presión arterial (Cadena original) | Numerica compuesta | "125/79", "139/70", "104/77", "140/83"... |
+| `blood_pressure_mm_hg` | Presión arterial (Cadena original) | Num. Compuesta | "125/79", "139/70", "104/77", "140/83"... |
 | `systolic_bp` | Presión arterial sistólica | Numérica | 125, 139, 104, 140... |
 | `diastolic_bp` | Presión arterial diastólica | Numérica | 79, 70, 77, 83... |
-| `blood_pressure_category` | Clasificación de la presión arterial | Categórica | "Elevated", "Hypertension Stage 1", "Normal", "Hypertension Stage 2" |
+| `blood_pressure_category` | Clasificación de la presión arterial | Categórica | "Normal", "Elevated", "Hypertension Stage 1", "Hypertension Stage 2" |
 | `total_cholesterol_mg_d_l` | Colesterol total en sangre | Numérica | 248, 162, 103, 134... |
-| `hdl_mg_d_l` | Colesterol de alta densidad (HDL) | Numérica | 78, 50, 73, 46... |
-| `estimated_ldl_mg_d_l` | Colesterol de baja densidad (LDL) | Numérica | 140, 82, 0, 58... |
+| `hdl_mg_d_l` | Colesterol HDL (Alta densidad) | Numérica | 78, 50, 73, 46... |
+| `estimated_ldl_mg_d_l` | Colesterol LDL (Baja densidad) | Numérica | 140, 82, 0, 58... |
 | `fasting_blood_sugar_mg_d_l` | Glucosa en ayunas | Numérica | 111, 135, 114, 91... |
-| `smoking_status` | Estado de tabaquismo activo | Categórica | "N", "Y" |
-| `diabetes_status` | Diagnóstico previo de diabetes | Categórica | "Y", "N" |
+| `smoking_status` | Tabaquismo activo | Categórica | "N", "Y" |
+| `diabetes_status` | Diagnóstico de diabetes | Categórica | "Y", "N" |
 | `physical_activity_level` | Intensidad de actividad física | Categórica | "Low", "Moderate", "High" |
-| `family_history_of_cvd` | Antecedentes familiares de CVD | Categórica | "N", "Y" |
+| `family_history_of_cvd` | Antecedentes familiares CVD | Categórica | "N", "Y" |
 | `waist_to_height_ratio` | Índice cintura-altura | Numérica | 0.504, 0.488, 0.583, 0.537... |
 | `cvd_risk_score` | Puntuación de riesgo acumulado | Numérica | 17.93, 20.51, 12.64, 16.36... |
-| **`cvd_risk_level`** | **Nivel de riesgo diagnosticado (Target)** | **Categórica** | **"LOW", "INTERMEDIARY", "HIGH"** |
-
-### B. Hepatitis C Virus Dataset (HCV)
-
-**Dimensiones:** 1385 observaciones x 29 variables.
-
-| Variable | Descripción | Tipo Analítico | Valores Observados / Categorías |
-|------------------|------------------|------------------|------------------|
-| `age` | Edad en años | Numérica | 56, 46, 57, 49... |
-| `gender` | Género (1: Masc, 2: Fem) | Categórica | 1, 2 |
-| `bmi` | Índice de Masa Corporal | Numérica | 35, 29, 33, 32... |
-| `fever` | Presencia de fiebre | Categórica | 1, 2 |
-| `nausea_vomting` | Presencia de náuseas o vómitos | Categórica | 1, 2 |
-| `headache` | Presencia de dolor de cabeza | Categórica | 1, 2 |
-| `diarrhea` | Presencia de diarrea frecuente | Categórica | 1, 2 |
-| `fatigue_generalized_bone_ache` | Presencia de fatiga y dolor óseo | Categórica | 1, 2 |
-| `jaundice` | Presencia de ictericia (color amarillento) | Categórica | 1, 2 |
-| `epigastric_pain` | Presencia de dolor en el área del epigastrio | Categórica | 1, 2 |
-| `wbc` | Recuento de glóbulos blancos | Numérica | 7425, 12101, 4178, 6490... |
-| `rbc` | Recuento de glóbulos rojos | Numérica | 4248807, 4429425, 4621191, 4794631... |
-| `hgb` | Hemoglobina | Numérica | 14, 10, 12, 11... |
-| `plat` | Recuento de plaquetas | Numérica | 112132, 129367, 151522, 146457... |
-| `ast_1` | Ratio Aspartato Transaminasa | Numérica | 99, 91, 113, 43... |
-| `alt_1` | Alanina Transaminasa (Semana 1) | Numérica | 84, 123, 49, 64... |
-| `alt4` | Alanina Transaminasa (Semana 4) | Numérica | 52, 95, 109, 67... |
-| `alt_12` | Alanina Transaminasa (Semana 12) | Numérica | 109, 75, 107, 80... |
-| `alt_24` | Alanina Transaminasa (Semana 24) | Numérica | 81, 113, 116, 88... |
-| `alt_36` | Alanina Transaminasa (Semana 36) | Numérica | 5, 57, 48, 94... |
-| `alt_48` | Alanina Transaminasa (Semana 48) | Numérica | 5, 123, 77, 90... |
-| `alt_after_24_w` | ALT (Post 24 semanas tratamiento) | Numérica | 5, 44, 33, 30... |
-| `rna_base` | Carga viral inicial | Numérica | 655330, 40620, 571148, 1041941... |
-| `rna_4` | Carga viral (Semana 4) | Numérica | 634536, 538635, 661346, 449939... |
-| `rna_12` | Carga viral (Semana 12) | Numérica | 288194, 637056, 5, 585688... |
-| `rna_eot` | Carga viral (Fin del tratamiento) | Numérica | 5, 336804, 735945, 744463... |
-| `rna_ef` | Carga viral (Fin del seguimiento) | Numérica | 5, 31085, 558829, 582301... |
-| `baseline_histological_grading` | Grado histológico inicial (Escala) | Categorica | 13, 4, 10, 11, 12, 5, 15, 16, 8, 9... |
-| **`baselinehistological_staging`** | **Estadio histológico (Target)** | **Categórica** | **1, 2, 3, 4** |
-
-Donde 1=Male, 2=Female on Gender and 1=Absent, 2=Present on the simptomatic variables (fever, nausiea/vomiting, headhache...)
+| **`cvd_risk_level`** | **Nivel de riesgo (Target)** | **Categórica** | **"LOW", "INTERMEDIARY", "HIGH"** |
 
 
-## 1.4. Pre-filtering (data leakage)
+### B. Breast Cancer Wisconsin (Diagnostic)
 
-Antes de proceder al análisis estadístico, realizamos una criba de variables basada en el conocimiento del dominio médico. El objetivo es eliminar el Data Leakage (fuita de dades) y asegurar que nuestros modelos sean realistas.
+Este dataset tiee 569 observaciones con 32 variables.Enntre elas se ecuentran el taregt "diagnosis" la cual indica si es malignoo o beningno. luego se encuentran tambien 10 diferentes caractersticas modfologicas observadas en el nucleo en citologias en celulas tumorales. Para cada una de las 10 características morfológicas observadas, el dataset proporciona tres mediciones distintas que conforman las 30 variables continuas:
+- Media (_mean): El valor promedio de la característica para todos los núcleos celulares de la imagen.
+- Error Estándar (_sd): La variabilidad técnica o desviación estándar de la medición entre los núcleos.
+- Peor o Mayor Valor (_worst): El promedio de los tres valores más grandes detectados, lo cual suele ser el indicador clínico más crítico para determinar malignidad.
 
+| Variable | Descripción | Tipo Analítico | Posibles Valores (Muestra) |
+| --- | --- | --- | --- |
+| `id` | Identificador de la muestra | Categórica | 842302, 842517, 84300903, 84348301... |
+| **`diagnosis`** | **Diagnóstico del tumor (Target)** | **Categórica** | **"M" (Malignant), "B" (Benign)** |
+| `radius_mean, sd, worst` | Radio (distancia al perímetro) | Numérica | 17.99, 20.57, 19.69, 11.42... |
+| `texture_mean, sd, worst` | Textura (desviación escala grises) | Numérica | 10.38, 17.77, 21.25, 20.38... |
+| `perimeter_mean, sd, worst` | Perímetro del núcleo | Numérica | 122.8, 132.9, 130, 77.58... |
+| `area_mean, sd, worst` | Área del núcleo celular | Numérica | 1001, 1326, 1203, 386.1... |
+| `smoothness_mean, sd, worst` | Suavidad (variación de radios) | Numérica | 0.1184, 0.0847, 0.1096, 0.1425... |
+| `compactness_mean, sd, worst` | Compacidad nuclear | Numérica | 0.2776, 0.0786, 0.1599, 0.2839... |
+| `concavity_mean, sd, worst` | Severidad de hendiduras | Numérica | 0.3001, 0.0869, 0.1974, 0.2414... |
+| `concave_points_mean, sd, worst` | Número de hendiduras | Numérica | 0.1471, 0.0701, 0.1279, 0.1052... |
+| `symmetry_mean, sd, worst` | Simetría nuclear | Numérica | 0.2419, 0.1812, 0.2069, 0.2597... |
+| `fractal_dimension_mean, sd, worst` | Dimensión fractal (irregularidad) | Numérica | 0.0787, 0.0566, 0.0599, 0.0974... |
+
+
+## 1.4. Pre-filtering
+
+Antes de proceder al análisis estadístico, realizamos una criba de variables basada en el conocimiento del dominio médico y en los objetivos de los modelos que aplicaremos. El objetivo es eliminar variables irrelevantes (ruido) o aquellas que puedan provocar Data Leakage, asegurando que los modelos aprendan patrones biológicos y no reglas matemáticas triviales.
 
 A. Dataset Cardiovascular (CVD)
 Eliminamos las siguientes variables por redundancia lógica y riesgo de sobreajustamiento:
 
-cvd_risk_score: Al ser la puntuación numérica de la que deriva directamente nuestro target (cvd_risk_level), su inclusión permitiría al modelo "hacer trampa" en lugar de aprender los patrones biológicos subyacentes.
+cvd_risk_score: Al ser la puntuación numérica de la que deriva directamente nuestro target (cvd_risk_level), su inclusión permitiría al modelo "hacer trampa" (leakage), prediciendo el resultado mediante una fórmula matemática en lugar de aprender los patrones biológicos subyacentes.
 
-blood_pressure_category: Es una categorización simplificada basada en umbrales fijos de presión arterial que ya tenemos desglosada en systolic_bp y diastolic_bp.
+blood_pressure_category: Es una categorización simplificada basada en umbrales fijos de presión arterial que ya tenemos desglosados con mayor precisión en las variables sistólica y diastólica.
 
-blood_pressure_mm_hg: Adicionalmente, aunque aqui no lo hacemos por data leakage sino por otros motivos, eliminaremos la varaible blood_pressure_mm_hg, debido a que es un dato compuesto (ej "125/79"), dificil de reconocoer por R i que ademas ya esta representado por otras dos columasn (systolic_bp i diastolic_bp).
+blood_pressure_mm_hg: Se elimina por ser un dato compuesto de tipo cadena (ej. "125/79"), difícil de procesar algorítmicamente y ya representado de forma atómica por otras dos columnas.
 
-B. Dataset Hepatitis C (HCV)
-Para este escenario, nuestro objetivo es predecir el estadio histológico basal (inicial). Es decir, cualquier variable que de informacio sobre estados futuros induciria a sesgo. Por tanto, debemos ser estrictos con la línea temporal de los datos:
+height_cm: Se descarta por redundancia absoluta, manteniendo únicamente la altura en metros (height_m) para el cálculo de proporciones.
 
-Variables de seguimiento y post-tratamiento: Eliminamos todas las mediciones de ALT y carga viral (RNA) realizadas a partir de la semana 4 hasta el fin del seguimiento (alt_12, alt_48, rna_eot, rna_ef, etc.).
-Usar datos que ocurren meses después del diagnóstico para predecir el estadio inicial es un error metodológico que invalidaría la utilidad clínica del modelo en el mundo real.
+Nota: aunque aqui podiramos eliminar aun mas redunancias (p ej la altura o peso porque tenemos ya BMI) las mantendremos de momento para no hacer un pre-filtrado demasiado agresivo y porque las analizaremos mas adelante
+
+
+B. Breast Cancer Wisconsin (Diagnostic)
+En este escenario clínico, la purga es más directa pero igualmente crítica para la validez del modelo:
+
+id: Este atributo es un mero identificador administrativo de la muestra. No posee ninguna carga informativa sobre la morfología celular y, de mantenerse, podría generar un falso aprendizaje si el algoritmo encuentra correlaciones espurias con el número de registro.
 
 ```{r}
-# Aplicamos la purga técnica para eliminar sesgos y datos post-diagnóstico
-purged_data <- purge_medical_leakage(cvd_raw, hcv_raw)
+# Aplicamos la purga
+filtered_data <- pre_filtering(cvd_raw, cancer_raw)
 
-# Asignamos los datasets limpios para las siguientes fases
-cvd_filtered <- purged_data$cvd
-hcv_filtered <- purged_data$hcv
+# Extraemos los datasets ya limpios
+cvd_filtered    <- filtered_data$cvd
+cancer_filtered <- filtered_data$cancer
 ```
 
 ## 1.4 Varaible exploration
 
-Pasemos ahora a explorar un poco mas cada variable. Antes de nada, pero, para que R reconozaca correctamente cada variable, transformaremos las categoricas en factori aseguraraemos que las numericas sean numericas.
+Pasemos ahora a explorar un poco mas cada variable. Antes de nada, pero, para que R reconozaca correctamente cada variable, transformaremos las categoricas en factors i aseguraraemos que las numericas sean numericas.
 
 ```{r}
 # 1. Definimos las listas de variables categóricas según nuestro diccionario
+
+# En CVD tenemos un mix de factores demográficos y niveles de riesgo
 cols_cvd_cat <- c("sex", "smoking_status", "diabetes_status", 
                   "physical_activity_level", "family_history_of_cvd", 
                   "cvd_risk_level")
 
-cols_hcv_cat <- c("gender", "fever", "nausea_vomting", "headache", 
-                  "diarrhea", "fatigue_generalized_bone_ache", 
-                  "jaundice", "epigastric_pain", "baselinehistological_staging",
-                  "baseline_histological_grading")
+# En Breast Cancer, el tipado es directo: solo el diagnóstico es categórico
+cols_cancer_cat <- c("diagnosis")
 
-# 3. Aplicación de la función universal
-cvd_typed <- type_medical_data(cvd_filtered, cols_cvd_cat)
-hcv_typed <- type_medical_data(hcv_filtered, cols_hcv_cat)
+# 2. Aplicación de la función universal de tipado
+# Nota: cvd_ready y cancer_ready vienen del paso anterior de pre-filtering
+cvd_typed    <- type_data(cvd_filtered, cols_cvd_cat)
+cancer_typed <- type_data(cancer_filtered, cols_cancer_cat)
 ```
 
 Para dictaminar nuestra estrategia de limpieza, analizamos el resumen estadístico de ambos conjuntos de datos.
@@ -383,7 +374,7 @@ No obstante, los modelos de arboles no se ven perjudicados por esto (al ser mode
 
 Por tanto, nuestra estrategia aqui sera estandarizar dos datsets los cuales seran usados para metodos no supervisados que lo requieren (i por tanto usaremos, en hcv, el que tiene escla log en dna). Par alosno supervisados, usaremos las versiones previas para garantizar que mantengan la escala original
 
-Aqui aplicaremos estandarizacion por z-score la cual ... (añadir cual es i como funciona)
+Aqui aplicaremos estandarizacion por z-score la cual ... (añadir cual es, la formula matematica i como funciona)
 
 ```{r}
 # Estandarizamos los tres datasets
@@ -408,38 +399,33 @@ No obstant, els arbres de desicio (com a minim els actuals com c5.0 o random for
 
 Per tant, en aquest fase, crearem 4 datasets diferenciats.
 Per a models no supervisats:
-cvd_scaled: Neteja completa, imputació KNN, sense categòriques i estandarditzat ($Z$-score).
-hcv_scaled: Neteja completa, ràtio $\log_{10}$ aplicat, sense categòriques i estandarditzat ($Z$-score).
+cvd_scaled: Imputació KNN, sense outliers, sanitiztzat, sense categòriques i estandarditzat ($Z$-score).
+hcv_scaled: Ràtio $\log_{10}$ aplicat a rna_base, sense categòriques i estandarditzat ($Z$-score).
 Per a supervisats:
-cvd_super: Neteja completa i imputació KNN. Manté les variables categòriques com a factors i les escales originals (sense estandarditzar), permetent regles del tipus: "Si Colesterol > 240 i Fumador = SÍ".
-hcv_super: Neteja completa i escala original (sense $\log_{10}$ ni $Z$-score). Manté les variables categòriques per permetre particions basades en la presència/absència de símptomes (Febre, Icterícia, etc.).
+cvd_super: Imputació KNN, sense outliers, sanitiztzat. Manté les variables categòriques com a factors i les escales originals (sense estandarditzar), permetent regles del tipus: "Si Colesterol > 240 i Fumador = SÍ".
+hcv_super: Escala original (sense $\log_{10}$ ni $Z$-score). Manté les variables categòriques per permetre particions basades en la presència/absència de símptomes (Febre, Icterícia, etc.).
+
+Ademas, al geerar la partcion, nos aseguraremos que las categoricas esten en el mformato adecuado. Byuscamos que tengan la etiqueta completa, NO codificada, i e mayusculas. Asi, en CVD nos asegurarewmos que no haya abreviaciones (por ej subsituynedo YES en Y), en HCV decodificaremos (por ej poniendo MALE en 1), i aseguraremos las caps. Esto nos da coherencia total i, ademas, mejor interpretabilidad.
 
 ```{r}
 # Despachamos los datasets usando los objetos que ya hemos procesado previamente
-final_assets <- finalize_datasets(cvd_scaled, hcv_scaled, cvd_sanited, hcv_typed)
+final_assets <- partition_medical_datasets(cvd_scaled, hcv_scaled, cvd_sanited, hcv_typed)
 
 # Nomenclatura final para el resto del proyecto
-cvd_cluster <- final_assets$cvd_cluster  # Escalado, sin categóricas
-hcv_cluster <- final_assets$hcv_cluster  # Escalado, con log, sin categóricas
-cvd_super   <- final_assets$cvd_super    # Original, con categóricas e imputado
-hcv_super   <- final_assets$hcv_super    # Original, con categóricas
+cvd_cluster <- final_assets$cvd_cluster
+hcv_cluster <- final_assets$hcv_cluster
+cvd_super   <- final_assets$cvd_super
+hcv_super   <- final_assets$hcv_super
 ```
-
 
 ## 1.10 Redundancias
 
-Arribats a aquest punt de la pipeline, disposem de quatre variants del dataset, cadascuna optimitzada per a un objectiu específic:
-
-cvd_scaled / hcv_scaled: Datasets completament nets (sense outliers, NA ni incongruències) i estandarditzats. Dissenyats per a algoritmes de classificació no supervisada (Clustering).
-
-cvd_sanited / hcv_no_log: Datasets nets però en la seva escala original. Dissenyats per a algoritmes de classificació supervisada (Arbres de Decisió).
-
 L'objectiu d'aquesta fase és tractar les variables redundants: aquelles que aporten informació duplicada o extremadament correlacionada, generant soroll i risc de sobreajustament (overfitting). No obstant això, la nostra estratègia per gestionar-les dependrà de la naturalesa del model:
 
-A. Estratègia per a Clustering (Models No Supervisats): Els models de clustering basats en distàncies són molt sensibles a la redundància; si dues variables diuen el mateix, el seu pes en el càlcul de la distància es duplica artificialment, esbiaixant els clústers. Per solucionar-ho, aplicarem una Anàlisi de Components Principals (PCA).
+- Per als datasets dels models no supervisats: Els models de clustering basats en distàncies són molt sensibles a la redundància; si dues variables diuen el mateix, el seu pes en el càlcul de la distància es duplica artificialment, esbiaixant els clústers. Per solucionar-ho, aplicarem una Anàlisi de Components Principals (PCA).
 El PCA transforma les variables originals en unes de noves anomenades Components Principals, que són ortogonals entre si (no col·lineals) i capturen la màxima variància possible. Això ens permet reduir la dimensionalitat eliminant el soroll de forma automàtica.
 
-B. Estratègia per a Arbres de Decisió (Models Supervisats): En els models supervisats, no és recomanable aplicar PCA, ja que perdríem la interpretabilitat clínica: les regles de l'arbre deixarien d'expressar-se en unitats reals (com el pes o el colesterol) per fer-ho en components abstractes. Tot i que els arbres són més robusts davant la col·linealitat, mantenir variables redundants pot fragmentar la importància dels atributs i fer l'arbre innecessàriament complex. Per tant, realitzarem una eliminació manual basada en el coeficient de correlació i el coneixement del domini.
+- Per als datasets dels models supervisats: En els models supervisats, no és recomanable aplicar PCA, ja que perdríem la interpretabilitat clínica: les regles de l'arbre deixarien d'expressar-se en unitats reals (com el pes o el colesterol) per fer-ho en components abstractes. Tot i que els arbres són més robusts davant la col·linealitat, mantenir variables redundants pot fragmentar la importància dels atributs i fer l'arbre innecessàriament complex. Per tant, realitzarem una eliminació manual basada en el coeficient de correlació i el coneixement del domini.
 
 ### Matriu de Correlació
 
@@ -450,43 +436,56 @@ Per identificar quines variables són candidates a ser eliminades en els models 
 
 ```{r, fig.width=10, fig.height=8}
 # Llamada directa en una sola línea por dataset
-plot_correlation_matrix(cvd_sanited, "CVD: Análisis de Redundancias")
-plot_correlation_matrix(hcv_no_log, "HCV: Análisis de Redundancias")
+plot_correlation_matrix(cvd_super, "CVD: Análisis de Redundancias")
+plot_correlation_matrix(hcv_super, "HCV: Análisis de Redundancias")
 ```
 
-Empezando por CVD, vemos que hay redundancias claras) (>0,85). Una obvia es heigh_m i height_cm con un 0.98 (sorprene que no sea de 100% por lo que hay incongruencias minimas).  Tambien vemos una relcion clara entre waist_to_height_Ratio i abdomila_circumference_cm (0.9) claro debido a que es parte de su formula, pero solo de -0,4 con las dos de height (aunque tambien forman parte). Tabueb vmeos una correlacion alta entre estimated ldl i total cholesterol (0.93). tambien corr alta entre bmi i weight kg (0.88), normal al formar parte del calcuoo, pero sorprende que ambas height tienen solo un -0,44.
-Por ultimo, aunque no es una redundancia, sorprende que la que claramente esta mas relacionada con vd_risk_score es systolic_bp, por lo que, al menos linealmente, parece ser una buena variable para la prediccion del riesgo cardiovascular.
+Empezando por CVD, vemos que hay redundancias claras) (>0,85). Una obvia es heigh_m i height_cm con un 0.98 (sorprene que no sea de 100% por lo que hay incongruencias minimas).Tabueb vmeos una correlacion alta entre estimated ldl i total cholesterol (0.93).  Tambien vemos una relcion clara entre waist_to_height_Ratio i abdomila_circumference_cm (0.9) claro debido a que es parte de su formula, pero solo de -0,4 con las dos de height (aunque tambien forman parte).  tambien corr alta entre bmi i weight kg (0.88), normal al formar parte del calcuoo, pero sorprende que ambas height tienen solo un -0,44.
+El resto de corr tienen valores bajos (en general, aunq con alguyna excpecion, por debajo de 0.1)
 
 En base a lo anteiror, i en base tambien al conocimiento de dominio, eliminaremos:
 - height_m, height:cn i weight: al estar reconocidas en bmi
 - abdomila_circumference_cm al estar ya en weist to heist ratio
 - nos quedaremos con total_cholesterol i eliminaremos ldl (ya que, al ser este un estimado, es mas propenso a errores que el original)
-- tambien eliminaremos cvd_risk_score ya que no la usarmeos (como target o ground truth tenemos a el level que represettna la misma realidad pero de manera categorica)
+
+En el de HCV no veiem cap corr >0.85 (son todsa inferiores a 0.1). Tam,poco recomocemos ninguna que por cnociiento del doiinio deba ser redundnte (porq ya se vea reconocida por otras). Por tanto aqui no debemos eliminar niguna.
 
 
+```{r}
+# Aplicamos la eliminación de variables redundantes según nuestro análisis
+optimized_assets <- handle_medical_redundancies(cvd_super, hcv_super)
+
+# Actualizamos nuestros activos para supervisados
+cvd_super <- optimized_assets$cvd
+hcv_super <- optimized_assets$hcv
+```
+
+Esos serian, en principio, los datasets finales ya preparados para modelos supervisados.
+
+### PCA
+
+El Análisis de Componentes Principales (PCA) es una técnica de transformación lineal que proyecta los datos originales hacia un nuevo espacio de variables ortogonales denominadas Componentes Principales, ordenadas según la varianza que capturan.
+
+1. Centrado de los datos: Partimos de la matriz de datos original $X \in \mathbb{R}^{n \times p}$. Para asegurar que el análisis se centre en la variabilidad y no en el desplazamiento, restamos la media $\mu$ de cada columna:$$X_{c} = X - \mu$$ Donde:$X_c$: es la matriz de datos centrados. (Nota: Dado que nuestros datos ya han sido estandarizados por Z-score, la media $\mu$ ya es 0).
+
+2. Matriz de covarianzas: Calculamos la matriz de covarianzas $S$ para capturar cómo las variables se relacionan entre sí:$$S = \frac{1}{n-1} X_{c}^{\top} X_{c}$$
+donde $X_c^\top$: es la matriz centrada transpuesta i $n$: es el número total de observaciones (pacientes).
+
+3. Descomposición en autovalores y autovectors: Resolvemos la ecuación característica para encontrar las direcciones donde los datos están más dispersos:$$S w = \lambda w$$Donde:$w$: son los autovectores (o loadings), que definen la dirección y el peso de cada variable original en los nuevos ejes.$\lambda$: son los autovalores, que representan la magnitud de la varianza explicada en cada dirección.
+
+4. Proyección al nuevo espacio (Scores): Finalmente, calculamos las nuevas coordenadas de cada paciente (llamadas scores) proyectando los datos sobre los autovectores seleccionados ($k$):$$Z = X_{c} W_{k}$$Donde:$Z$: es la nueva matriz de datos transformados (coordenadas de los pacientes en el nuevo espacio).$W_k$: es la matriz que contiene los $k$ autovectores principales.
+
+Para decidir cuántas componentes conservar (cuantos k autovectores selccionamos en el paso anteiro), calculamos la Proporción de Varianza Explicada (PVE):$$\text{PVE}_{j} = \frac{\lambda_{j}}{\sum_{i=1}^{p} \lambda_{i}}$$Donde:$\text{PVE}_j$: es el porcentaje de información que retiene la componente $j$.$\lambda_j$: es el autovalor de la componente actual.$\sum \lambda_i$: es la suma de todos los autovalores (varianza total).
 
 
-En el de HCV no veiem cap corr >0.85 (en general tote sinferiors a 0.1, amb algunes excepcoins que pugen a un ~0.4 entre variables de rna -com rna_12 i rna_eot, rna_ef i rna_12 o rna:eot i rna_ef). Por tanto aqui no debemos eliminar niguna.
+```{r}
+# Ejecutamos el motor de PCA manual para ambos escenarios
+res_pca_cvd <- perform_manual_pca(cvd_cluster, "CVD: Variancia por Componente")
+res_pca_hcv <- perform_manual_pca(hcv_cluster, "HCV: Variancia por Componente")
 
-
-
-
-## 1.10 DATA LEAKAGE
-
-Eliminaremos variables que darian pistas:
-
-En cvd:
-- blood_pressure_category 
-
-Las variables post-tratamiento (rna_eot, rna_ef, alt_48, alt_after_24_w, etc.) (ELIMINAR): * Tu objetivo (Target) es el baselinehistological_staging (Estadio inicial de la fibrosis).
-
-No tiene sentido usar la carga viral del final del tratamiento (rna_ef) para predecir el estado de la fibrosis que el paciente tenía al principio (baseline).
-
-En un escenario real, tú quieres predecir el daño hepático cuando el paciente llega a la consulta, no después de un año de tratamiento. Usar datos del "futuro" para predecir el "pasado" es un error conceptual grave en Machine Learning.
-
-Recomendación para HCV: Quédate solo con las variables de "línea de base" (Baseline): síntomas, analítica inicial (wbc, rbc, hgb, plat), y las primeras tomas de enzimas/carga viral (ast_1, alt_1, rna_base).
-
-
-
-
+# Verificamos los nuevos valores (Scores) del primer paciente de CVD
+# Estos son los valores que usará el clustering
+print("Nuevas coordenadas (Scores) del Paciente 1 en CVD:")
+head(res_pca_cvd$scores[1, 1:5])
+```
 
