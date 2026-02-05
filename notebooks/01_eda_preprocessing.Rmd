@@ -374,7 +374,22 @@ En cambio, los Modelos Supervisados sí pueden integrar estas etiquetas:
 - Árboles (C5.0 y Random Forest):  Son capaces de incorporar de manera nativa las categoricas sin necesidad de tratarlas (codificarlas). ... (EXPLICA BREVEMENTE COMO LAS TRATA I ES CAPAZ DE CREAR RAMIFICACIONES CON ELLAS)
 - Regresión Logística: diferencia de los árboles, este modelo es puramente matemático y no admite texto. Sin embargo el algoritmo es capaz de realizar un Dummy Coding  (one-hot encoding) Por ejemplo, si una variable categórica tiene tres niveles (p. ej., “No fumador”, “Exfumador” y “Fumador”), la regresión logística elige una categoría de referencia (por ejemplo, “No fumador”) y crea internamente dos variables binarias. El modelo estima entonces cómo cambia la probabilidad del evento al pertenecer a cada una de las otras categorías en comparación con la categoría de referencia.
 
+Por tanto, en esta fase, crearemos tres variantes por cada escenario médico (CVD y Cáncer), sumando un total de 6 datasets listos para la acción:
 
+1. Datasets para Clustering (_cluster)
+Contenido: Solo variables numéricas.
+Tratamiento: Estandarización Z-score completa.
+Objetivo: K-means y DBSCAN (Geometría pura).
+
+2. Datasets para Árboles (_trees)
+Contenido: Variables numéricas + Variables categóricas (como factores).
+Tratamiento: Escala original (sin estandarizar) para máxima interpretabilidad.
+Objetivo: C5.0 y Random Forest.
+
+3. Datasets para Regresión Logística (_logistic)
+Contenido: Variables numéricas + Variables categóricas.
+Tratamiento: Solo las variables numéricas son estandarizadas (Z-score); las categóricas se mantienen como factores.
+Objetivo: Regresión Logística (Equilibrio entre escala y categorías).
 
 
 
