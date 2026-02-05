@@ -42,10 +42,11 @@ En Clustering: Esperamos que los algoritmos tengan dificultades para identificar
 En Predicción (Supervisados): La ambigüedad de las fronteras exigirá el uso de modelos de clasificación robustos y técnicas de regularización. La Regresión Logística podría sufrir al intentar trazar una línea simple en un espacio tan mezclado y los arboles de decision lo tendrandificil para encontrar los pnutosde corte o ramificacion. Este dataset representa el "escenario de mundo real" donde la predicción precisa es un reto.
 
 -   **Referencia:** [Mendeley Data - CVD Dataset](https://data.mendeley.com/datasets/d9scg7j8fp/1)
+Nota: usaremos el csv descargable des de ahi a fecha de realizacion de esto (1/2/2026)
 
 ### B. Breast Cancer Wisconsin (Diagnostic) - UCI
 
-Este dataset clínico contiene mediciones morfológicas obtenidas a partir de imágenes digitalizadas de una aspiración con aguja fina (FNA) de una masa mamaria de 569 pacientes. El dataset se compone de 30 variables numéricas continuas que describen características geométricas y de textura de los núcleos celulares de celulas tumorales (radio, perímetro, área, concavidad, etc.).
+Este dataset clínico, donado por la Universidad de Wisconsin, contiene mediciones morfológicas obtenidas a partir de imágenes digitalizadas de una aspiración con aguja fina (FNA) de una masa mamaria de 569 pacientes. El dataset se compone de 10 medidias que describen características geométricas y de textura de los núcleos celulares de celulas tumorales (radio, perímetro, área, concavidad, etc.) para las cuales cada una tiene 3 medidas (variables) segun media, sd i peor valor, generando un total de 30 variables numericas continuas.
 
 Hipótesis Analítica: En contraposición al caso cardiovascular (CVD), donde el riesgo es una condición sistémica y difusa, la malignidad celular en oncología presenta una firma física drástica y mensurable. Las células malignas suelen romper la simetría y las dimensiones de las células sanas, lo que debería traducirse en una estructura de datos con fronteras de decisión mucho más marcadas.
 
@@ -56,6 +57,8 @@ En Clustering: Esperamos encontrar "islas" de datos o clústeres casi perfectame
 En Predicción (Supervisados): Al existir una diferencia biológica tan clara, Esperamos que la Regresión Logística alcance una precisión alta debido a la probable separabilidad lineal del dataset.ADEMAS, Tanto C5.0 como Random Forest deberían alcanzar métricas de excelencia (Accuracy y F1-Score >90%), validando que nuestro pipeline es capaz de detectar señales biológicas claras cuando estas existen.
 
 Referencia: [UCI Machine Learning - Breast Cancer Wisconsin (Diagnostic)] (https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic)
+
+Nota: usaremos el .data descargable des de ahi a fecha de realizacion de esto (1/2/2026)
 
 
 ## 1.2 Data loading ang initial exploration
@@ -140,26 +143,28 @@ Auqneu ambas son candidatas a ser targeten los modelos supervisados decidimos se
 
 ### B. Breast Cancer Wisconsin (Diagnostic)
 
-Este dataset tiee 569 observaciones con 32 variables.Enntre elas se ecuentran el taregt "diagnosis" la cual indica si es malignoo o beningno. luego se encuentran tambien 10 diferentes caractersticas modfologicas observadas en el nucleo en citologias en celulas tumorales. Para cada una de las 10 características morfológicas observadas, el dataset proporciona tres mediciones distintas que conforman las 30 variables continuas:
-- Media (_mean): El valor promedio de la característica para todos los núcleos celulares de la imagen.
-- Error Estándar (_sd): La variabilidad técnica o desviación estándar de la medición entre los núcleos.
-- Peor o Mayor Valor (_worst): El promedio de los tres valores más grandes detectados, lo cual suele ser el indicador clínico más crítico para determinar malignidad.
+Este dataset tiee 569 observaciones con 32 variables.Enntre elas se ecuentran el taregt "diagnosis" la cual indica si es malignoo o beningno. luego se encuentran tambien 10 diferentes caractersticas modfologicas observadas en el nucleo en citologias en celulas tumorales. Para cada imagen, se identifican los núcleos celulares y se computan 10 características base. Para cada una de estas características, se calculan tres estadísticos, generando las 30 variables predictoras del dataset:
 
-| Variable | Descripción | Tipo Analítico | Posibles Valores (Muestra) |
+Media (_mean): El valor promedio de la característica en todos los núcleos de la imagen.
+
+Error Estándar (_sd): Mide la variabilidad técnica de la medición.
+
+"Worst" o Peor Valor (_worst): Definido específicamente por los autores como la media de los tres valores más grandes detectados para esa característica. Este es el indicador clínico más potente, ya que el diagnóstico a menudo depende de las células más aberrantes.
+
+| Variable | Descripción Técnica (según autores) | Tipo Analítico | Posibles Valores (Muestra) |
 | --- | --- | --- | --- |
-| `id` | Identificador de la muestra | Categórica | 842302, 842517, 84300903, 84348301... |
-| **`diagnosis`** | **Diagnóstico del tumor (Target)** | **Categórica** | **"M" (Malignant), "B" (Benign)** |
-| `radius_mean, sd, worst` | Radio (distancia al perímetro) | Numérica | 17.99, 20.57, 19.69, 11.42... |
-| `texture_mean, sd, worst` | Textura (desviación escala grises) | Numérica | 10.38, 17.77, 21.25, 20.38... |
-| `perimeter_mean, sd, worst` | Perímetro del núcleo | Numérica | 122.8, 132.9, 130, 77.58... |
-| `area_mean, sd, worst` | Área del núcleo celular | Numérica | 1001, 1326, 1203, 386.1... |
-| `smoothness_mean, sd, worst` | Suavidad (variación de radios) | Numérica | 0.1184, 0.0847, 0.1096, 0.1425... |
-| `compactness_mean, sd, worst` | Compacidad nuclear | Numérica | 0.2776, 0.0786, 0.1599, 0.2839... |
-| `concavity_mean, sd, worst` | Severidad de hendiduras | Numérica | 0.3001, 0.0869, 0.1974, 0.2414... |
-| `concave_points_mean, sd, worst` | Número de hendiduras | Numérica | 0.1471, 0.0701, 0.1279, 0.1052... |
-| `symmetry_mean, sd, worst` | Simetría nuclear | Numérica | 0.2419, 0.1812, 0.2069, 0.2597... |
-| `fractal_dimension_mean, sd, worst` | Dimensión fractal (irregularidad) | Numérica | 0.0787, 0.0566, 0.0599, 0.0974... |
-
+| `id` | Identificador único de la muestra | Categórica (ID) | 842302, 842517, 84300903... |
+| **`diagnosis`** | **Target: Diagnóstico del tumor** | **Categórica** | **"M" (Malignant), "B" (Benign)** |
+| `radius` | Media de las distancias del centro a los puntos del perímetro | Numérica | 17.99, 20.57, 19.69, 11.42... |
+| `texture` | Desviación estándar de los valores de la escala de grises | Numérica | 10.38, 17.77, 21.25, 20.38... |
+| `perimeter` | Longitud total del contorno del núcleo | Numérica | 122.8, 132.9, 130, 77.58... |
+| `area` | Superficie total del núcleo celular | Numérica | 1001, 1326, 1203, 386.1... |
+| `smoothness` | Variación local en la longitud de los radios | Numérica | 0.1184, 0.0847, 0.1096, 0.1425... |
+| `compactness` | Variable derivada:  | Numérica | 0.2776, 0.0786, 0.1599, 0.2839... |
+| `concavity` | Severidad de las porciones cóncavas del contorno | Numérica | 0.3001, 0.0869, 0.1974, 0.2414... |
+| `concave_points` | Número de porciones cóncavas en el contorno | Numérica | 0.1471, 0.0701, 0.1279, 0.1052... |
+| `symmetry` | Grado de simetría en la forma nuclear | Numérica | 0.2419, 0.1812, 0.2069, 0.2597... |
+| `fractal_dimension` | Aproximación de la línea de costa () | Numérica | 0.0787, 0.0566, 0.0599, 0.0974... |
 
 ## 1.4. Pre-filtering
 
@@ -176,8 +181,7 @@ blood_pressure_mm_hg: Se elimina por ser un dato compuesto de tipo cadena (ej. "
 
 height_cm: Se descarta por redundancia absoluta, manteniendo únicamente la altura en metros (height_m) para el cálculo de proporciones.
 
-Nota: aunque aqui podiramos eliminar aun mas redunancias (p ej la altura o peso porque tenemos ya BMI) las mantendremos de momento para no hacer un pre-filtrado demasiado agresivo y porque las analizaremos mas adelante
-
+Nota: aunque aqui podiramos eliminar aun mas redunancias (p ej la altura o peso porque tenemos ya BMI) las mantendremos de momento para no hacer un pre-filtrado y las trataremos mas adelante ya que podrian sernos utiles antes.
 
 B. Breast Cancer Wisconsin (Diagnostic)
 En este escenario clínico, la purga es más directa pero igualmente crítica para la validez del modelo:
@@ -193,7 +197,7 @@ cvd_filtered    <- filtered_data$cvd
 cancer_filtered <- filtered_data$cancer
 ```
 
-## 1.4 Varaible exploration
+## 1.5 Varaible exploration
 
 Pasemos ahora a explorar un poco mas cada variable. Antes de nada, pero, para que R reconozaca correctamente cada variable, transformaremos las categoricas en factors i aseguraraemos que las numericas sean numericas.
 
@@ -282,7 +286,7 @@ En todos estos modelos, el fallo crítico es el desbalanceo en CVD. Los algoritm
 
 Todos estos factores que hemos visto se tendran en cuenta en siguientes fases.
 
-## 1.5 Valores extremos y outliers
+## 1.6 Valores extremos y outliers
 
 Como dijimos, los outliers pueden afectar a nuestros modelos, principalmente a los de clasificacion.
 
@@ -324,7 +328,7 @@ Por tanto, so eliminaremos los outliers en el dataset de Cáncer. Si lo hiciéra
 
 Esto remarca de nuevo las limitaciones de usar metorodos como el metodo IQT unicamente sin revisar los resultados. Quizas en variables que usan una distrbucion gussiana perfecta es idal, pero en la vida real i sobretodo en datos clinicos, odnde muchas veces buscamos lo "excepcional" este se debe usar solo como una ayuda de deteccion, y siempre revisar i validar los outlers a mano.
 
-## 1.6 Valores absentes
+## 1.7 Valores absentes
 
 Como vimos, los valores absentes pueden afectar a nuestros modelos.Aqui los trataremos.
 
@@ -343,7 +347,7 @@ if(!anyNA(cvd_no_na)) {
 }
 ```
 
-## 1.7 Sanity check
+## 1.8 Sanity check
 
 Una bona pràctica en l'auditoria de dades clíniques consisteix a verificar la coherència de les variables derivades. Quan disposem de les variables precursores (com el pes i l'alçada per al BMI), és fonamental validar que el càlcul original és correcte abans de procedir a qualsevol anàlisi estadística avançada. Tot i que el dataset presenta diverses mètriques calculades, només disposem dels precursors complets per a dues d'elles en el dataset CVD: el BMI ($kg/m^2$) i el Waist-to-Height Ratio ($cintura/alçada$).El següent bloc de codi analitza el percentatge d'incongruències matemàtiques (assumint que les variables primàries són les correctes seguint la Llei de Propagació d'Errors) i, posteriorment, recalcula aquests valors per garantir la integritat del dataset:
 
@@ -356,7 +360,7 @@ Veiem que ambdues metriques tenen inconcruencies (en especial bmi amb un ~90%). 
 
 Hem optat per mantenir el criteri de correcció basat en la tolerància estricta per garantir la màxima precisió matemàtica i eliminar qualsevol rastre de "soroll" en les dades. Amb aquesta intervenció, no només esmenem els errors estructurals detectats en el BMI, sinó que homogenitzem tot el dataset sota un càlcul únic i precís, minimitzant la propagació d'errors cap a les fases de modelització.
 
-## 1.8. Standarization i division del dataset
+## 1.9 Standarization i division del dataset
 
 Tras haber limpiado, imputado y corregido la integridad de los datos, debemos adaptar su estructura a los requisitos de los modelos que emplearemos. No todos los algoritmos "ven" los datos de la misma forma, por lo que crearemos tres variantes de nuestros datasets para optimizar el rendimiento de cada familia de modelos.
 
@@ -393,80 +397,91 @@ Objetivo: Regresión Logística (Equilibrio entre escala y categorías).
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 ```{r}
-# Estandarizamos los tres datasets
-cvd_scaled <- standardize_data(cvd_sanited)
-hcv_scaled <- standardize_data(hcv_log)
+# 1. Generamos las variantes para el escenario Cardiovascular (CVD)
+# Usamos cvd_sanited porque es la versión más limpia (sin NAs y con BMI corregido)
+cvd_variants <- prepare_model_variants(cvd_sanited)
 
-# Verificación rápida: la sd de cualquier numérica debe ser ~0 y la sd = 1
-mean(cvd_scaled$age)
-sd(cvd_scaled$age)
+cvd_cluster  <- cvd_variants$cluster
+cvd_trees    <- cvd_variants$trees
+cvd_logistic <- cvd_variants$logistic
+
+# 2. Generamos las variantes para el escenario Cáncer (Breast Cancer)
+# Usamos cancer_typed porque ya venía limpio de NAs y Outliers
+cancer_variants <- prepare_model_variants(cancer_typed)
+
+cancer_cluster  <- cancer_variants$cluster
+cancer_trees    <- cancer_variants$trees
+cancer_logistic <- cancer_variants$logistic
 ```
 
 
-```{r}
-# Despachamos los datasets usando los objetos que ya hemos procesado previamente
-final_assets <- partition_medical_datasets(cvd_scaled, hcv_scaled, cvd_sanited, hcv_typed)
 
-# Nomenclatura final para el resto del proyecto
-cvd_cluster <- final_assets$cvd_cluster
-hcv_cluster <- final_assets$hcv_cluster
-cvd_super   <- final_assets$cvd_super
-hcv_super   <- final_assets$hcv_super
-```
 
 ## 1.10 Redundancias
 
 L'objectiu d'aquesta fase és tractar les variables redundants: aquelles que aporten informació duplicada o extremadament correlacionada, generant soroll i risc de sobreajustament (overfitting). No obstant això, la nostra estratègia per gestionar-les dependrà de la naturalesa del model:
 
-- Per als datasets dels models no supervisats: Els models de clustering basats en distàncies són molt sensibles a la redundància; si dues variables diuen el mateix, el seu pes en el càlcul de la distància es duplica artificialment, esbiaixant els clústers. Per solucionar-ho, aplicarem una Anàlisi de Components Principals (PCA).
-El PCA transforma les variables originals en unes de noves anomenades Components Principals, que són ortogonals entre si (no col·lineals) i capturen la màxima variància possible. Això ens permet reduir la dimensionalitat eliminant el soroll de forma automàtica.
+- Per als datasets dels models no supervisats: Els models de clustering basats en distàncies són molt sensibles a la redundància; si dues variables diuen el mateix, el seu pes en el càlcul de la distància es duplica artificialment, esbiaixant els clústers. Per solucionar-ho, per als datasets delsno supervisats, aplicarem una Anàlisi de Components Principals (PCA). El PCA transforma les variables originals en unes de noves anomenades Components Principals, que són ortogonals entre si (no col·lineals) i capturen la màxima variància possible. Això ens permet reduir la dimensionalitat eliminant el soroll de forma automàtica.
 
-- Per als datasets dels models supervisats: En els models supervisats, no és recomanable aplicar PCA, ja que perdríem la interpretabilitat clínica: les regles de l'arbre deixarien d'expressar-se en unitats reals (com el pes o el colesterol) per fer-ho en components abstractes. Tot i que els arbres són més robusts davant la col·linealitat, mantenir variables redundants pot fragmentar la importància dels atributs i fer l'arbre innecessàriament complex. Per tant, realitzarem una eliminació manual basada en el coeficient de correlació i el coneixement del domini.
+- Per als datasets dels models supervisats: En els models supervisats, no és recomanable aplicar PCA, ja que perdríem la interpretabilitat clínica: les regles de l'arbre deixarien d'expressar-se en unitats reals (com el pes o el colesterol) per fer-ho en components abstractes i en reg logistica ... COMPLETA . Són naturalment robustos davant la redundància. Si dues variables estan molt correlacionades, l'algoritme simplement triarà la que millor separi les classes en cada tall (split), ignorant l'altra. Tot i això, mantenir redundàncies extremes pot fragmentar la importància de les variables i fer els arbres innecessàriament complexos. No obsant, la regresio logistica odia la colinealitat. s extremadament sensible a la multicolinealitat. Si incloem variables altament correlacionades, els coeficients es tornen inestables, els errors estàndard s'inflen i la capacitat del model per identificar quina variable causa realment el risc desapareix.
+
+Por tanto, aqui, volverems a hacer ua estrategia diferenciada entre tree i entre regreson logisitca: para los de regresionaplicarem una eliminacio manual de redundancies badaes en criteris matematics (com el coef de corr) i de coneixement de domeini. Per als de arbres, pero, mantindrem totes les varaibles originals, per a que exploti tota la seva potència.
 
 ### Matriu de Correlació
 
-Comencemos el tratamiento manual para los datasets para metodos supervisados.
+Comencemos el tratamiento manual para el dataset de regresion.
 
 Per identificar quines variables són candidates a ser eliminades en els models supervisats, utilitzarem el coeficient de correlació de Pearson. Aquest mètode mesura el grau de relació lineal entre dos atributs en un rang de $[-1, 1]$.Establirem un llindar crític de $|r| > 0.85$. Si una parella de variables supera aquest valor, es consideraran redundants i optarem per mantenir-ne només una (la que tingui més valor clínic o sigui més fàcil de mesurar), simplificant així el model i millorant la seva parsimònia.
 
 
+Empecemos con el de cvd:
+
 ```{r, fig.width=10, fig.height=8}
 # Llamada directa en una sola línea por dataset
-plot_correlation_matrix(cvd_super, "CVD: Análisis de Redundancias")
-plot_correlation_matrix(hcv_super, "HCV: Análisis de Redundancias")
+plot_correlation_matrix(cvd_logistic, "CVD: Análisis de Redundancias")
 ```
 
 Empezando por CVD, vemos que hay redundancias claras) (>0,85). Una obvia es heigh_m i height_cm con un 0.98 (sorprene que no sea de 100% por lo que hay incongruencias minimas).Tabueb vmeos una correlacion alta entre estimated ldl i total cholesterol (0.93).  Tambien vemos una relcion clara entre waist_to_height_Ratio i abdomila_circumference_cm (0.9) claro debido a que es parte de su formula, pero solo de -0,4 con las dos de height (aunque tambien forman parte).  tambien corr alta entre bmi i weight kg (0.88), normal al formar parte del calcuoo, pero sorprende que ambas height tienen solo un -0,44.
 El resto de corr tienen valores bajos (en general, aunq con alguyna excpecion, por debajo de 0.1)
 
 En base a lo anteiror, i en base tambien al conocimiento de dominio, eliminaremos:
-- height_m, height:cn i weight: al estar reconocidas en bmi
+- height_m i weight: al estar reconocidas en bmi
 - abdomila_circumference_cm al estar ya en weist to heist ratio
 - nos quedaremos con total_cholesterol i eliminaremos ldl (ya que, al ser este un estimado, es mas propenso a errores que el original)
 
-En el de HCV no veiem cap corr >0.85 (son todsa inferiores a 0.1). Tam,poco recomocemos ninguna que por cnociiento del doiinio deba ser redundnte (porq ya se vea reconocida por otras). Por tanto aqui no debemos eliminar niguna.
+Pasemos ahora al de cancer:
+
+```{r}
+plot_correlation_matrix(cancer_logistic, "BBlader Cancer: Análisis de Redundancias")
+```
+
+Vemos aqui que, al ser el num d variables nuerica mucho mayor respecto al de cvd, la complejidad de la mtriz de correlacion tambien augmenta. vemos que aqui las corr, en general, se dispara: hay muchas que superan el critrrio de >85% y , fuera de eso, vemos correlaciones casi todos los posibles valores (0,7 corr, 0,6, 0,5...). Nosotros nos centraremos en las que superan el criterio ya que son las cque nos interesan
+
+Para empezar, vemos que muchas de las correlaciones mas elevadas corresponden a metricas que representan forman parte de la msma realidad. El ejemplo mas claro es el bloque tamaño que recoje radius, perimeeter i area (en sus veriosnes mean, sd i worst). Las correlacoines son casi perfectas (como se ve claramente con perimeter_mean i raius_mean, con un valor APROXIMADO de 1, o area_mean i radius_mean, con 0.99). Lo dicho, corresponden a una misma realidad: tamaño. Es irrelevante tener el perimetro o el radio si ya tenemos el area. Por tanto, mantendremos todas las de area i eliminaremos todas las de radius i perimeter.
+
+Por otro lado, tambien tendriamos el bloque "irregularidad". Aqui tendriamos 2 varaibles que tambien forman parte de la misma realidad: concave_points_mean i concavity_mean.Aunque mas bajoo que el grupo anteiorr, sigue teniendo alta corr (con el ejemplo kas alto: concave_points_mean vs concavity_mean (0.921)). Nos quedaremos solo con concave_points que segun la literatura del dataset oficial (Wolberg) tiene mejor capacidad predictiva que concavity
+
+Por otro lado casi todas las variables tienen una correlación altísima entre su valor promedio y su valor máximo (el "peor" caso). Por ejemplo: radius_worst vs radius_mean (0.969). Esto ocurre con todas las variables excepto con smoothness, fractal_dimension i symmetry. Esto indica que si una célula es "rara" en promedio, sus células más extremas también lo son.  Igualmente, en cancer, nomalmente el peor (que en este caso recordemos es un promedio de las 3 peores, asique se diluye la prob de que sea un simple outleir o valor extraño) son las que suelen determinar las celulas cancerigenas. no lo hacen las buenas. Por tanto, solo en aquellas metricas donde corr >0,85, eliminaremos mean i mantendremos solo worst, que es la mas informativa en este contexto. Aun asi, solo lo harmos cuando se cumppla la condicion ya que eliminarlo sistematicaente solo sesgaria al modelo a aprender el escenario "malo" sin entender lo normal. Aun asi se perderá bastante informacion de lo "nomal" (debido a que elimiamos 7 de las 10 mean) pero el modelo es lo que requiere (y añadilo solo perjudicaria el moelo).
+
+Asi pues, eliminemos tanto las de cvd como las de cancer, y verifiquemos que no quede ninguna con corr >0.85
+
 
 
 ```{r}
-# Aplicamos la eliminación de variables redundantes según nuestro análisis
-optimized_assets <- handle_medical_redundancies(cvd_super, hcv_super)
+# Aplicamos la limpieza solo a las versiones logísticas
+logistic_cleaned <- clean_redundancies_logistic(cvd_logistic, cancer_logistic)
 
-# Actualizamos nuestros activos para supervisados
-cvd_super <- optimized_assets$cvd
-hcv_super <- optimized_assets$hcv
+# Sobreescribimos con las versiones ya sin redundancias
+cvd_logistic    <- logistic_cleaned$cvd
+cancer_logistic <- logistic_cleaned$cancer
+
+plot_correlation_matrix(cvd_logistic, "cvd corregido: Análisis de Redundancias")
+
+plot_correlation_matrix(cancer_logistic, "BBlader Cancer corregido: Análisis de Redundancias")
 ```
+
+Como vemos CVD no tiene practicamente redunancias (ni correlaciones elevadas, la maxima es 0,23) lo cual es ideal para regresion. No ostante, cancer, sigue mateninedo alguna corr alta, (por ej de 0.81) aunque ninguna que supere el limte d e0.85. Aun asi, decidimos mantenernos auqi ya que metodos mas agresivos (como un intervalo de 0.75) eliminaria demasiada varianza la cual es extremadamente util en contexto clinico. Una correlación de 0.81 indica que las variables comparten un 65% de información ($R^2 \approx 0.65$), pero todavía hay un 35% de varianza única en cada una. Si sigues borrando, corres el riesgo de eliminar "señal" biológica real que el modelo podría usar para distinguir casos difíciles. La Regresión Logística es sensible, pero no tanto como para "romperse" con un 0.81.
 
 Esos serian, en principio, los datasets finales ya preparados para modelos supervisados.
 
@@ -489,7 +504,7 @@ Para decidir cuántas componentes conservar (cuantos k autovectores selccionamos
 ```{r}
 # Ejecutamos el motor de PCA manual para ambos escenarios
 res_pca_cvd <- perform_manual_pca(cvd_cluster, "CVD: Variancia por Componente")
-res_pca_hcv <- perform_manual_pca(hcv_cluster, "HCV: Variancia por Componente")
+res_pca_hcv <- perform_manual_pca(cancer_cluster, "Cancer: Variancia por Componente")
 
 # Verificamos los nuevos valores (Scores) del primer paciente de CVD
 # Estos son los valores que usará el clustering

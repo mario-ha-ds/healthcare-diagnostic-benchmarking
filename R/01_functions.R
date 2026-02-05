@@ -74,9 +74,10 @@ get_unique_valid_values <- function(df, n = 10) {
 
 
 
-#' Purga de *Data Leakage* y Variables No Informativas
+#' Purga Variables No Informativas y data leakage
 #'
-#' Esta función elimina variables que introducen *data leakage* (atributos
+#' Esta función elimina variables que no aportan informacion o que compromenten al modelo
+#' por ejemplo alguna variable repetida, alguna variable que aporte *data leakage* (atributos
 #' derivados directa o indirectamente del target) y metadatos no predictivos
 #' (por ejemplo, identificadores únicos), con el objetivo de garantizar
 #' un pipeline de modelado válido y libre de información espuria.
@@ -293,7 +294,7 @@ audit_and_fix_integrity <- function(df, tolerance = 0.01) {
   df_audit <- df %>%
     dplyr::mutate(
       bmi_calc = weight_kg / (height_m^2),
-      ratio_calc = abdominal_circumference_cm / height_cm,
+      ratio_calc = abdominal_circumference_cm / (height_m * 100),
       # Detectamos incongruencias fuera de la tolerancia (por redondeos)
       bmi_error = abs(bmi - bmi_calc) > tolerance,
       ratio_error = abs(waist_to_height_ratio - ratio_calc) > tolerance
@@ -330,72 +331,54 @@ audit_and_fix_integrity <- function(df, tolerance = 0.01) {
 
 
 
-#' Estandarización de Variables Numéricas (Z-score)
+
+
+
+
+
+#' Prepare and Export Triple-Flavor Datasets
 #'
-#' @param df Dataframe con variables numéricas y categóricas.
-#' @return Dataframe con las variables numéricas escaladas (media 0, sd 1).
+#' Genera las tres variantes necesarias para el modelado (Clustering, Árboles, Logística).
+#' Además, estandariza estéticamente todos los factores a mayúsculas.
+#'
+#' @param df Dataframe limpio y auditado.
+#' @return Una lista con tres dataframes: $cluster, $trees, $logistic.
 #' @export
-standardize_data <- function(df) {
+prepare_model_variants <- function(df) {
   
-  # Seleccionamos y escalamos solo las columnas numéricas
-  df_scaled <- df %>%
-    dplyr::mutate(across(where(is.numeric), ~ as.numeric(scale(.x))))
+  # 0. Paso Estético: Convertir niveles de factores a MAYÚSCULAS
+  # Esto asegura consistencia visual en los gráficos futuros
+  df_upper <- df %>%
+    dplyr::mutate(dplyr::across(where(is.factor), ~ {
+      # Obtenemos los niveles, los pasamos a mayúsculas y reasignamos
+      levels(.x) <- toupper(levels(.x))
+      .x
+    }))
   
-  return(df_scaled)
-}
-
-
-
-
-
-
-
-
-#' Partición y Decodificación de Datasets Médicos
-#' 
-#' Finaliza la preparación creando las rutas de Clustering y Supervisados.
-#' Decodifica las variables de CVD y HCV a palabras completas y MAYÚSCULAS.
-#' 
-#' @export
-partition_medical_datasets <- function(cvd_sc, hcv_sc, cvd_sn, hcv_ty) {
+  # 1. Variante CLUSTERING: Solo numéricas + Estandarizadas (Z-Score)
+  df_cluster <- df_upper %>%
+    dplyr::select(where(is.numeric)) %>% # Eliminamos categóricas
+    scale() %>%                          # Estandarizamos (media 0, sd 1)
+    as.data.frame()                      # scale() devuelve matriz, lo devolvemos a df
   
-  # 1. RUTA CLUSTERING: Solo numéricas y ya escaladas
-  cvd_cluster <- cvd_sc %>% dplyr::select(where(is.numeric))
-  hcv_cluster <- hcv_sc %>% dplyr::select(where(is.numeric))
+  # 2. Variante TREES: Todo el dataset + Escala Original
+  # Los árboles prefieren los datos "humanos" y manejan bien los factores
+  df_trees <- df_upper
   
-  # 2. RUTA SUPERVISADOS: Decodificación Total y Mayúsculas
+  # 3. Variante LOGÍSTICA: Factores + Numéricas Estandarizadas
+  # La regresión necesita factores (para dummies) pero requiere números escalados
+  df_logistic <- df_upper %>%
+    dplyr::mutate(dplyr::across(where(is.numeric), scale))
   
-  # CVD: Traducimos etiquetas abreviadas a palabras completas
-  cvd_super <- cvd_sn %>%
-    mutate(
-      sex = case_when(sex == "F" ~ "FEMALE", sex == "M" ~ "MALE", TRUE ~ as.character(sex)),
-      smoking_status = case_when(smoking_status == "Y" ~ "YES", smoking_status == "N" ~ "NO", TRUE ~ as.character(smoking_status)),
-      diabetes_status = case_when(diabetes_status == "Y" ~ "YES", diabetes_status == "N" ~ "NO", TRUE ~ as.character(diabetes_status)),
-      family_history_of_cvd = case_when(family_history_of_cvd == "Y" ~ "YES", family_history_of_cvd == "N" ~ "NO", TRUE ~ as.character(family_history_of_cvd)),
-      # Convertimos todo a factor y aseguramos MAYÚSCULAS
-      across(where(is.character) | where(is.factor), ~ factor(toupper(as.character(.x))))
-    )
-  
-  # HCV: Decodificamos códigos numéricos y pasamos a MAYÚSCULAS
-  hcv_super <- hcv_ty %>%
-    mutate(
-      gender = factor(gender, levels = c(1, 2), labels = c("MALE", "FEMALE")),
-      across(c(fever, nausea_vomting, headache, diarrhea, 
-               fatigue_generalized_bone_ache, jaundice, epigastric_pain),
-             ~ factor(.x, levels = c(1, 2), labels = c("ABSENT", "PRESENT"))),
-      # Aseguramos que el resto (como el target) también esté en MAYÚSCULAS
-      across(where(is.factor), ~ factor(toupper(as.character(.x))))
-    )
-  
-  message("Datasets particionados. Etiquetas decodificadas y en MAYÚSCULAS.")
-  
+  # Devolvemos una lista con los 3 sabores
   return(list(
-    cvd_cluster = cvd_cluster,
-    hcv_cluster = hcv_cluster,
-    cvd_super   = cvd_super,
-    hcv_super   = hcv_super
+    cluster  = df_cluster,
+    trees    = df_trees,
+    logistic = df_logistic
   ))
 }
+
+
 
 
 
@@ -436,37 +419,46 @@ plot_correlation_matrix <- function(df, title = "Matriz de Correlación") {
 
 
 
-#' Gestión de Redundancias Manuales para Modelos Supervisados
-#' 
-#' Elimina variables con alta correlación (>0.85) o redundancia clínica 
-#' basada en el conocimiento del dominio.
-#' 
-#' @param df_cvd Dataset de CVD supervisado.
-#' @param df_hcv Dataset de HCV supervisado.
-#' @return Lista con los datasets optimizados.
+
+
+
+
+
+
+#' Limpieza Final de Redundancias para Logística
+#'
+#' Recibe los datasets de logística y elimina las colinealidades críticas.
+#' @param df_cvd Dataset cvd_logistic.
+#' @param df_cancer Dataset cancer_logistic.
 #' @export
-handle_medical_redundancies <- function(df_cvd, df_hcv) {
+clean_redundancies_logistic <- function(df_cvd, df_cancer) {
   
-  # 1. Optimización CVD
-  # Eliminamos precursores del BMI y Ratio, y la estimación de LDL
-  cvd_optimized <- df_cvd %>%
+  # 1. Poda CVD: Eliminamos precursores del BMI y Ratio + LDL estimado
+  cvd_final <- df_cvd %>%
     dplyr::select(
-      -height_m, -height_cm, -weight_kg, # Ya representados por BMI
-      -abdominal_circumference_cm,       # Ya representado por Waist-to-Height Ratio
-      -estimated_ldl_mg_d_l              # Eliminamos el estimado, preferimos Total Cholesterol
+      -dplyr::any_of(c("height_m", "height_cm", "weight_kg", 
+                       "abdominal_circumference_cm", "estimated_ldl_mg_d_l"))
     )
   
-  # 2. Optimización HCV
-  # Según el análisis de correlación, no hay redundancias críticas (>0.85)
-  hcv_optimized <- df_hcv
+  # 2. Poda Cáncer: Triaje basado en correlación > 0.85 y Wolberg
+  # Eliminamos radios, perímetros, concavidades y medias redundantes
+  vars_to_remove_cancer <- c(
+    "radius_mean", "radius_sd", "radius_worst",
+    "perimeter_mean", "perimeter_sd", "perimeter_worst",
+    "concavity_mean", "concavity_sd", "concavity_worst",
+    "area_mean", "texture_mean", "concave_points_mean", "compactness_mean"
+  )
   
-  message("Redundancias eliminadas en CVD. HCV se mantiene íntegro por baja correlación.")
+  cancer_final <- df_cancer %>% 
+    dplyr::select(-dplyr::any_of(vars_to_remove_cancer))
   
-  return(list(
-    cvd = cvd_optimized,
-    hcv = hcv_optimized
-  ))
+  return(list(cvd = cvd_final, cancer = cancer_final))
 }
+
+
+
+
+
 
 
 
