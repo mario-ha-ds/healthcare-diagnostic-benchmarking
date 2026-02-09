@@ -336,6 +336,7 @@ Como vimos en revisar el summary, soolo el dataset CVD tiene valores absentes. S
 
 Afortunadamente, ninguna categoria contiene na, de manera qe podemos recurrir a metodos numericos. hemos decidido usar el kk¡-nearest neightborus (knn). A diferencia de la imputación por la media o la mediana, que trata cada variable de forma aislada y reduce artificialmente la varianza del dataset, el método k-nearest neighbors (KNN) utiliza la estructura global de los datos para estimar los valores faltantes. Su funcionamiento se basa en la proximidad multidimensional: para cada paciente que presenta un valor ausente (un "hueco" en sus datos), el algoritmo busca en el resto del dataset a los $k$ individuos más similares (sus "vecinos") basándose en las variables que sí tenemos disponibles.Una vez identificados estos vecinos más cercanos —normalmente utilizando la distancia euclidiana—, el algoritmo calcula la media ponderada de sus valores para esa variable específica y la asigna al espacio vacío. Este enfoque es el gold standard en datos clínicos porque preserva las correlaciones entre variables: si un paciente tiene una presión arterial alta y un BMI elevado, el KNN le asignará un valor de colesterol coherente con ese perfil metabólico, en lugar de un promedio genérico. Al representar el 5% de la muestra, este método nos permite recuperar la integridad del dataset sin sesgar las distribuciones originales, preparándolo para un clustering mucho más preciso.
 
+Para evitar data leakage elimnaremos momentariamente las target de cada datset, para que el algoritmo no base las respuestas en base a el. Tambvien eliminaremos cualquier factor: nos centreemos en numericas para que la metrica de distancia sea  puramente numerica.,
 
 ```{r}
 # Aplicamos la imputación KNN al dataset de CVD
@@ -356,7 +357,7 @@ Una bona pràctica en l'auditoria de dades clíniques consisteix a verificar la 
 cvd_sanited <- audit_and_fix_integrity(cvd_no_na)
 ```
 
-Veiem que ambdues metriques tenen inconcruencies (en especial bmi amb un ~90%). En la formula aplicada s'ha establert una tolerància d'error molt estricta (0.01). Això explica per què observem un percentatge d'error tan elevat. Si aguemntem la tolerància (per exemple, a 0.2) observem comportaments dispars: mentre que en el Waist-to-Height Ratio l'error es residualitza fins a un insignificant 0,13% —confirmant que les discrepàncies eren mers arrodoniments en la captura original—, en el BMI persisteix un 43,1% d'incongruències. Això indica la presència d'errors de càlcul o de registre que van més enllà de la precisió decimal
+Veiem que ambdues metriques tenen inconcruencies (en especial bmi amb un ~90%). En la formula aplicada s'ha establert una tolerància d'error molt estricta (0.01). Això explica per què observem un percentatge d'error tan elevat. Si aguemntem la tolerància (per exemple, a 0.2) observem comportaments dispars: mentre que en el Waist-to-Height Ratio l'error es residualitza fins a un insignificant 0,13% —confirmant que les discrepàncies eren mers arrodoniments en la captura original—, en el BMI persisteix un 43,1% d'incongruències. Això indica la presència d'errors de càlcul o de registre que van més enllà de la precisió decimal i posa en avisque potser el dataset te baixa fidelitat!!!!
 
 Hem optat per mantenir el criteri de correcció basat en la tolerància estricta per garantir la màxima precisió matemàtica i eliminar qualsevol rastre de "soroll" en les dades. Amb aquesta intervenció, no només esmenem els errors estructurals detectats en el BMI, sinó que homogenitzem tot el dataset sota un càlcul únic i precís, minimitzant la propagació d'errors cap a les fases de modelització.
 
@@ -395,20 +396,17 @@ Contenido: Variables numéricas + Variables categóricas.
 Tratamiento: Solo las variables numéricas son estandarizadas (Z-score); las categóricas se mantienen como factores.
 Objetivo: Regresión Logística (Equilibrio entre escala y categorías).
 
-
+Mantendremos el target (o ground truth) en todos los datasets praa poder vrificar. obviamente, se debran dejar siempre fuera del entrenamiento.
 
 ```{r}
-# 1. Generamos las variantes para el escenario Cardiovascular (CVD)
-# Usamos cvd_sanited porque es la versión más limpia (sin NAs y con BMI corregido)
-cvd_variants <- prepare_model_variants(cvd_sanited)
+# Generamos las variantes especificando la etiqueta de cada escenario
+cvd_variants    <- prepare_model_variants(cvd_sanited, "cvd_risk_level")
+cancer_variants <- prepare_model_variants(cancer_typed, "diagnosis")
 
+# Asignación de datasets
 cvd_cluster  <- cvd_variants$cluster
 cvd_trees    <- cvd_variants$trees
 cvd_logistic <- cvd_variants$logistic
-
-# 2. Generamos las variantes para el escenario Cáncer (Breast Cancer)
-# Usamos cancer_typed porque ya venía limpio de NAs y Outliers
-cancer_variants <- prepare_model_variants(cancer_typed)
 
 cancer_cluster  <- cancer_variants$cluster
 cancer_trees    <- cancer_variants$trees
@@ -489,6 +487,10 @@ Esos serian, en principio, los datasets finales ya preparados para modelos super
 
 El Análisis de Componentes Principales (PCA) es una técnica de transformación lineal que proyecta los datos originales hacia un nuevo espacio de variables ortogonales denominadas Componentes Principales, ordenadas según la varianza que capturan.
 
+Este sera el metodo que aplicaremos para reducir al minimo la colinealidad en los datasets para modelos no supervisados. 
+
+Funciona de la siguiente manera:
+
 1. Centrado de los datos: Partimos de la matriz de datos original $X \in \mathbb{R}^{n \times p}$. Para asegurar que el análisis se centre en la variabilidad y no en el desplazamiento, restamos la media $\mu$ de cada columna:$$X_{c} = X - \mu$$ Donde:$X_c$: es la matriz de datos centrados. (Nota: Dado que nuestros datos ya han sido estandarizados por Z-score, la media $\mu$ ya es 0).
 
 2. Matriz de covarianzas: Calculamos la matriz de covarianzas $S$ para capturar cómo las variables se relacionan entre sí:$$S = \frac{1}{n-1} X_{c}^{\top} X_{c}$$
@@ -498,21 +500,91 @@ donde $X_c^\top$: es la matriz centrada transpuesta i $n$: es el número total d
 
 4. Proyección al nuevo espacio (Scores): Finalmente, calculamos las nuevas coordenadas de cada paciente (llamadas scores) proyectando los datos sobre los autovectores seleccionados ($k$):$$Z = X_{c} W_{k}$$Donde:$Z$: es la nueva matriz de datos transformados (coordenadas de los pacientes en el nuevo espacio).$W_k$: es la matriz que contiene los $k$ autovectores principales.
 
-Para decidir cuántas componentes conservar (cuantos k autovectores selccionamos en el paso anteiro), calculamos la Proporción de Varianza Explicada (PVE):$$\text{PVE}_{j} = \frac{\lambda_{j}}{\sum_{i=1}^{p} \lambda_{i}}$$Donde:$\text{PVE}_j$: es el porcentaje de información que retiene la componente $j$.$\lambda_j$: es el autovalor de la componente actual.$\sum \lambda_i$: es la suma de todos los autovalores (varianza total).
+Para decidir cuántas componentes conservar (cuantos k autovectores selccionamos en el paso anteiro), calculamos la Proporción de Varianza Explicada (PVE):$$\text{PVE}_{j} = \frac{\lambda_{j}}{\sum_{i=1}^{p} \lambda_{i}}$$Donde:$\text{PVE}_j$: es el porcentaje de información que retiene la componente $j$.$\lambda_j$: es el autovalor de la componente actual.$\sum \lambda_i$: es la suma de todos los autovalores (varianza total). Una regla general es escoger tantas componentes como para explicar un x % de la varainza, genralmente 85%. Aun asi, este metodo tiene limitaciones, como veremos.
 
+Asi, lo que hraemos sera calcular las pca i represntar en un scree plt la variabildiad ed cada componente, junto con una linea curva qiue represente la varianza acumulada. Est  nospermitira escoger el num de componentes ideal.
 
 ```{r}
 # Ejecutamos el motor de PCA manual para ambos escenarios
 res_pca_cvd <- perform_manual_pca(cvd_cluster, "CVD: Variancia por Componente")
-res_pca_hcv <- perform_manual_pca(cancer_cluster, "Cancer: Variancia por Componente")
-
-# Verificamos los nuevos valores (Scores) del primer paciente de CVD
-# Estos son los valores que usará el clustering
-print("Nuevas coordenadas (Scores) del Paciente 1 en CVD:")
-head(res_pca_cvd$scores[1, 1:5])
+res_pca_cancer <- perform_manual_pca(cancer_cluster, "Cancer: Variancia por Componente")
 ```
+Los graficos corroboran nuestra hipotesis inicial: parece qe en cvd muchas de las variables son importantes i no hay solo factor (o unos pocos) determinantes. De las 12 variables que comprenden al dataset, se necesitan 7 para explicar el anisiado 85% (aprox ya que relamente es 84,61) de la variabilidad, y 9 para explciar aproximadamente el 100%. Y ademas, la redccion de varaibilidad es menos notoria: al principio la dismninucion de la variabiliadd no es exageera i de hecho, de la 5a a la 9a coponente todas explican casi lo mismo, sin disminucion significativa. Estyo ultimo indica claramente que el dataset es isotrópico (la información está repartida en muchas direcciones con la misma fuerza) Esto refuerza la idea de el riesgo cvd como un hecho multifactorial i suma puntos a nuesra hipotesis de continuum: al necesitar muchas vareaibles, la diferencia entre riesgo alto o bajo, estara difuminada ya que se puede ser alto segun un factor pero bajo segun otro. 
+Es curioso ademas, que justo 7 componentes (~85%) es identico a el numero de variables que hemos mantenido nosotros en el apartado anterior, al reducir manualmente rednndancias. Esto, seguramente, no es casual: seguramente hemos seleccionado correctamente las variables que eran ruido o repetidas, ca`ptando las mismas componentes que la pca ha hecho, aunque con otro metodo.
+E cualquier caso, que hacemos en este caso? nos queamos con 7 componentes? Bueno, asumir simplemente el umbral tiene sus limitaciones. Aunque  es una regla que generalmente funciona, ya que nos permite seleccionar la mayor variabilidad i cantidad de info en el menor num de variables, tabien hace que podamos perder indormaicon relevante. En este4 caso, vemos que de la 7a a la 8a componente practicamente la variabilidad es la inmsma, i de la 8a a la 9a igual. de manera que todas ellas son igualmente relevantes. selecionar la 7a i no la 8an sera injusto ynos haria perfder informacion relevante, i mas en el reisgo cvd donde cada informacion importa. Por tanto, aqiuo, decidiremos obviar el umbral i escoger 9 componentes, las suficientes para epliar cerca del 99% de la variabilidad, i eñ punro real donde hay un wlbow en la bvarianza acu,mulada. Eliminamos 3 componentes que son el ruido real i, teniendo en cuenta nuestra dea de continuum, aseguramos no perder info relevante.
 
+El contraste con el dataset de cáncer es notable. A pesar de partir de 30 variables numéricas, el sistema colapsa drásticamente la información: solo 5 componentes bastan para explicar el 85% (realemnte 84.73%) de la variabilidad. Aqui, ademas, la disminucion de la variabiliadd tras cada componente es mucho mas marcada, remarcando la idea de que las primaras son mucho mas importantes. Las primeras dos compentes explican la gran matoria de la varibilidad, al contrairo de cvd donde era todo mas equitativo.
+Este resultado es la prueba matemática de lo que observamos en la matriz de correlación: la mayoría de las 30 variables originales eran "ecos" geométricos unas de otras (radios, perímetros, áreas). La PCA ha filtrado ese ruido, demostrando que la "huella dactilar" de la malignidad se puede resumir en apenas 5 dimensiones. A diferencia de CVD, aquí la varianza se concentra en las primeras componentes. Esto suele ser un indicador de que los datos tienen una estructura interna muy fuerte y linealmente separable, lo que apoya nuestra hipótesis de que encontraremos grupos (Benigno vs. Maligno) con fronteras mucho más definidas.
+Aqui es mucho mas dificil ver el elvbow. la varianza acumulada se cmporta de forma logaritmica, al principoi crece muchoi (por la gran varianza de las primeras componentes) pero progresivamente se va aplcanadno, debido a que cada vez explcian menos las componentes. Aqiu, el la componente que exzplica aprox el 85%, la 5a, el salto a la siguiente componente (6a) es mucho menos marcada que en el caso anterior. realmente la ganancia de varivilidad es muy peqeueña si se compara con las que ya se tienen. i en cuantas mas se añaden, mas marcadoo es. Se necesitarian cerca de 19 componnentes para explciar esa aprox 99% . Por tanto, aqui, cremos que es mas coinveniente cofiar en las primeras i seleccionar el minimo ruido posible: 5 componentes.
+
+Para entender qué hay detrás de estas componentes, debemos fijarnos en los Loadings (o autovectores, $w$).Cada componente principal es una combinación lineal de las variables originales, donde cada variable tiene asignado un peso específico. Estos pesos representan la correlación entre la variable original y la componente: cuanto mayor es el valor absoluto del peso, mayor es la influencia de esa variable en la definición de ese eje.En términos matemáticos:Los Autovalores ($\lambda$) nos dicen cuánta información captura la componente (la varianza).Los Autovectores ($w$) o pesos nos dicen de qué está hecha esa información, permitiéndonos identificar qué variables son las más determinantes para cada factor.
+
+Asi, ara entender cada componente seleccionada, buscaremos para cada componetne, los pesos de las 4 variaables con mas peso en cada componetne, empezando por cvd:
+
+```{r}
+# 1. Análisis de pesos para CVD (9 componentes)
+top_cvd <- get_top_features_pca(res_pca_cvd, n_pcs = 9, top_n = 4)
+
+print(top_cvd)
+```
+PC1 (Eje Metabólico-Antropométrico): Representa la obesidad central. El peso máximo lo tienen el ratio cintura-altura y el BMI. Es el factor de forma física.
+
+PC2 (Eje Lipídico): Representa el colesterol. Está dominado por el LDL y el colesterol total. Curiosamente, tiene una relación inversa con el peso, lo que sugiere que hay perfiles de riesgo lipídico que no dependen solo de la obesidad.
+
+PC3 (Eje de Composición Corporal): Funciona como un ajuste del PC1, refinando la relación entre el peso total y el perímetro abdominal para distinguir entre diferentes tipos de acumulación de grasa.
+
+PC4 (Eje Metabólico-Edad): Relaciona el azúcar en sangre con el envejecimiento y la presión sistólica. Es el eje del desgaste metabólico.
+
+PC5 y PC6 (Eje Protector/Físico): Introducen el HDL (colesterol bueno) y la altura. El hecho de que el factor protector (HDL) aparezca en ejes separados refuerza su rol independiente frente a los factores de riesgo de las primeras componentes. 
+
+PC7 y PC8 (Eje de Hipertensión): Se centran casi exclusivamente en la presión arterial (diastólica y sistólica). Que necesiten sus propias componentes indica que la tensión va por un camino distinto al colesterol o al peso.
+
+PC9 (Eje de Glucemia): Dominado por el azúcar en sangre y la edad. Similar en cuanto a vairables al 4.
+
+La arquitectura de estas componentes demuestra que el riesgo es un rompecabezas de 9 piezas ortogonales. Aunque existen solapamientos y repeticiones en las variables que las componen, el hecho de que la varianza se reparta de forma tan específica valida nuestra hipótesis del continuum: un paciente puede presentar un riesgo alto en el eje lipídico (PC2) pero estar sano en el eje hemodinámico (PC7), lo que difumina las fronteras entre grupos de riesgo y justifica un análisis más detallado que el simple binomio "sano/enfermo".
+El predominio de la composición corporal y el perfil lipídico en las primeras componentes (las que capturan más varianza) sugiere que estos son los motores determinantes de la variabilidad en la población estudiada.
+
+Pasemos ahora al segundo dataset:
+
+```{r}
+# 1. Análisis de pesos para Cancer (5 componentes)
+top_cancer <- get_top_features_pca(res_pca_cancer, n_pcs = 5, top_n = 4)
+print(top_cancer)
+```
+Aquí el comportamiento es el de una "máquina" donde las piezas encajan de forma muy precisa.
+
+PC1 (Eje de Agresividad Morfológica): Es la componente más importante. Representa la irregularidad y complejidad del tumor (puntos cóncavos y concavidad). Si esta componente es alta, el tumor es morfológicamente sospechoso.
+
+PC2 (Eje de Complejidad Fractal): Se centra en la auto-similitud del borde del tumor. Un crecimiento fractal desordenado es típico de procesos malignos.
+
+PC3 (Eje de Inestabilidad/Textura): Mide la desviación estándar (SD) de la textura y la simetría. Representa qué tan "caótico" o heterogéneo es el tejido por dentro.
+
+PC4 (Eje de Apariencia Visual (Textura)): Dominado totalmente por la textura (la "rugosidad" de la imagen en la mamografía).
+
+PC5 (Eje de Suavidad): : Representa la suavidad y uniformidad. Funciona como un contrapunto a los ejes de irregularidad, midiendo qué tan "limpios" son los límites de la masa celular.
+
+Mientras que en CVD el riesgo era un puzle de piezas independientes, en el cáncer la información es jerárquica. La $PC1$ y la $PC2$ por sí solas ya cuentan la mayor parte de la historia. Esta concentración de la varianza en solo 5 o 6 ejes sugiere que estamos ante un problema con fronteras biológicas muy marcadas.
+
+Conociendo ya que dinica cada copnente, estableceremos dlos datasets finales para clustering: con 9 componentes para cvd y 5 para cancer.
+
+```{r}
+# Generamos el dataset final para el escenario Cardiovascular (9 componentes)
+cvd_final_pca <- generate_pca_datasets(
+  pca_results = res_pca_cvd, 
+  df_original = cvd_cluster, 
+  target_col  = "cvd_risk_level", 
+  n_pcs       = 9
+)
+
+# Generamos el dataset final para el escenario de Cáncer (5 componentes)
+cancer_final_pca <- generate_pca_datasets(
+  pca_results = res_pca_cancer, 
+  df_original = cancer_cluster, 
+  target_col  = "diagnosis", 
+  n_pcs       = 5
+)
+```
 
 ## 1.11. representaicon visual
 
-distribuciones de numaercias segun target, entre otroxs
+Llegamos a este punto ya tenemos tanto los datasets _clustering, -logistic i _trees preparados, cada uno con sus caracteristicas especificas.distribuciones de numaercias segun target, entre otroxs
